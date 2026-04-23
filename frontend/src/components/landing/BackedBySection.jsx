@@ -8,7 +8,11 @@ const BackedBySection = () => {
       <div className="backedby-grid">
         {backers.map((backer) => (
           <div key={backer.name} className="backer-card">
-            <img src={backer.logo} alt={backer.name} />
+            {backer.logo ? (
+              <img src={backer.logo} alt={backer.name} />
+            ) : (
+              <span className="backer-name">{backer.name}</span>
+            )}
           </div>
         ))}
       </div>

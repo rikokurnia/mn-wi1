@@ -4,23 +4,23 @@ const Hero = () => {
   return (
     <section className="hero-section">
       <h1 className="hero-title">
-        The
+        Instant
         <br />
-        Internet
+        Pay For
         <br />
-        Of Chains
+        Every Worker
       </h1>
       <div className="hero-bottom">
         <div>
           <p className="hero-description">
-            Caldera is a network of interconnected, purpose-built blockchains, settling on Ethereum.
+            Mandora uses GPS geofencing and photo-hash proofs on Solana to settle gig worker payments in 400ms — directly to their phone, no bank account needed.
           </p>
           <div className="hero-buttons">
-            <a href="https://portal.caldera.xyz/" className="btn-primary" target="_blank" rel="noopener noreferrer">
-              Explore Chains
+            <a href="#protocol" className="btn-primary">
+              Launch App
             </a>
-            <a href="#book-call" className="btn-secondary">
-              Book A Call
+            <a href="#agencies" className="btn-secondary">
+              For Agencies
             </a>
           </div>
         </div>

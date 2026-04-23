@@ -40,7 +40,7 @@ const CommunitySection = () => {
     <>
       <section className="community-section">
         <h2 className="community-heading">
-          Join The Caldera<br />Community
+          Join The Mandora<br />Community
         </h2>
         <div className="community-stats">
           {communityStats.map((stat) => (
@@ -62,7 +62,7 @@ const CommunitySection = () => {
 
       <div className="newsletter-section" id="newsletter">
         <h3 className="newsletter-title">
-          Sign Up To Be The First To Hear About Our Ecosystem & Product Updates
+          Sign Up For Protocol Updates & Worker Onboarding News
         </h3>
         <form className="newsletter-form" onSubmit={handleSubmit}>
           <input

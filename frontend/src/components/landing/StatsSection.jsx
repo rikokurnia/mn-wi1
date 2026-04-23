@@ -25,10 +25,10 @@ const StatsSection = () => {
   return (
     <section className="stats-section" ref={sectionRef}>
       <h2 className="stats-heading">
-        The Most Powerful<br />Multi-Chain Ecosystem
+        DePIN For The<br />Service Economy
       </h2>
-      <a href="https://portal.caldera.xyz/" className="stats-explore-btn" target="_blank" rel="noopener noreferrer">
-        Explore The Ecosystem
+      <a href="#protocol" className="stats-explore-btn">
+        Explore The Protocol
       </a>
       <div className="stats-grid">
         {stats.map((stat, index) => (

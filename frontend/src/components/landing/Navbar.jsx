@@ -1,9 +1,14 @@
 import React from 'react';
 import { navLinks } from '../../data/mockData';
 
-const CalderaLogo = () => (
-  <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M14 2L26 24H2L14 2Z" fill="#FF4D00" />
+const MandoraLogo = () => (
+  <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="32" height="32" rx="8" fill="#FF4D00" />
+    <path d="M8 22V12L16 8L24 12V22L16 26L8 22Z" stroke="white" strokeWidth="2" fill="none" />
+    <circle cx="16" cy="16" r="3" fill="white" />
+    <line x1="16" y1="13" x2="16" y2="8" stroke="white" strokeWidth="1.5" />
+    <line x1="19" y1="16" x2="24" y2="14" stroke="white" strokeWidth="1.5" />
+    <line x1="13" y1="16" x2="8" y2="14" stroke="white" strokeWidth="1.5" />
   </svg>
 );
 
@@ -29,7 +34,7 @@ const Navbar = () => {
   return (
     <nav className="navbar">
       <a href="/" className="navbar-logo">
-        <CalderaLogo />
+        <MandoraLogo />
       </a>
       <div className="navbar-divider" />
       <div className="navbar-links">
@@ -41,13 +46,13 @@ const Navbar = () => {
       </div>
       <div className="navbar-divider" />
       <div className="navbar-social">
-        <a href="https://discord.gg/caldera" target="_blank" rel="noopener noreferrer">
+        <a href="#" target="_blank" rel="noopener noreferrer">
           <DiscordIcon />
         </a>
-        <a href="https://twitter.com/Calderaxyz" target="_blank" rel="noopener noreferrer">
+        <a href="#" target="_blank" rel="noopener noreferrer">
           <XIcon />
         </a>
-        <a href="https://t.me/s/calderaofficial" target="_blank" rel="noopener noreferrer">
+        <a href="#" target="_blank" rel="noopener noreferrer">
           <TelegramIcon />
         </a>
       </div>

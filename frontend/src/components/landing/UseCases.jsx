@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { useCaseTabs } from '../../data/mockData';
 
 const UseCases = () => {
-  const [activeTab, setActiveTab] = useState('gaming');
+  const [activeTab, setActiveTab] = useState('delivery');
   const activeCase = useCaseTabs.find((tab) => tab.id === activeTab);
 
   return (
-    <section className="usecases-section">
+    <section className="usecases-section" id="agencies">
       <h2 className="usecases-heading">
-        Bringing The World<br />Onchain
+        Built For Indonesia's<br />Service Economy
       </h2>
 
       <div className="usecases-tabs">
@@ -25,21 +25,18 @@ const UseCases = () => {
 
       {activeCase && (
         <div className="usecase-content">
-          <p className="usecase-tagline">{activeCase.tagline}</p>
-          <p className="usecase-description">{activeCase.description}</p>
-          <p className="usecase-projects-label">Projects built with Caldera</p>
-          <div className="usecase-projects">
-            {activeCase.projects.map((project) => (
-              <a
-                key={project.name}
-                href={project.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="usecase-project"
-              >
-                <img src={project.logo} alt={project.name} />
-              </a>
-            ))}
+          <div className="usecase-content-inner">
+            <div className="usecase-text-side">
+              <p className="usecase-tagline">{activeCase.tagline}</p>
+              <p className="usecase-description">{activeCase.description}</p>
+            </div>
+            <div className="usecase-image-side">
+              <img
+                src={activeCase.image}
+                alt={activeCase.label}
+                className="usecase-image"
+              />
+            </div>
           </div>
         </div>
       )}

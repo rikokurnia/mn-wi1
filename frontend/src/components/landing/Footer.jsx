@@ -61,17 +61,19 @@ const Footer = () => {
         <div className="footer-cta-card">
           <div>
             <div className="footer-logo">
-              <svg viewBox="0 0 152 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ height: 28 }}>
-                <path d="M16 2L30 28H2L16 2Z" fill="#FF4D00" />
-                <text x="38" y="24" fill="white" fontSize="22" fontWeight="800" fontFamily="Inter, sans-serif">caldera</text>
+              <svg viewBox="0 0 200 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ height: 28 }}>
+                <rect width="32" height="32" rx="8" fill="#FF4D00" />
+                <path d="M8 22V12L16 8L24 12V22L16 26L8 22Z" stroke="white" strokeWidth="2" fill="none" />
+                <circle cx="16" cy="16" r="3" fill="white" />
+                <text x="40" y="24" fill="white" fontSize="22" fontWeight="800" fontFamily="Inter, sans-serif">mandora</text>
               </svg>
             </div>
             <h3 className="footer-tagline">
-              Fastest-Growing Rollup Ecosystems On Ethereum
+              DePIN For Indonesia's Service Economy
             </h3>
           </div>
-          <a href="#book-call" className="btn-primary" style={{ width: 'fit-content', marginTop: 24 }}>
-            Book A Call
+          <a href="#get-started" className="btn-primary" style={{ width: 'fit-content', marginTop: 24 }}>
+            Launch App
           </a>
         </div>
 
@@ -103,7 +105,7 @@ const Footer = () => {
               ))}
             </div>
             <p className="footer-copyright">
-              Caldera 2025 &copy; All rights reserved.
+              Mandora 2025 &copy; All rights reserved. Built on Solana.
             </p>
           </div>
         </div>
