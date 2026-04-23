@@ -16,7 +16,7 @@ const Hero = () => {
             Mandora uses GPS geofencing and photo-hash proofs on Solana to settle gig worker payments in 400ms — directly to their phone, no bank account needed.
           </p>
           <div className="hero-buttons">
-            <a href="#protocol" className="btn-primary">
+            <a href="/login" className="btn-primary">
               Launch App
             </a>
             <a href="#agencies" className="btn-secondary">
