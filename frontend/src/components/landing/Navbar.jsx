@@ -57,8 +57,8 @@ const Navbar = () => {
         </a>
       </div>
       <div className="navbar-divider" />
-      <a href="#get-started" className="navbar-cta">
-        Get Started
+      <a href="/login" className="navbar-cta">
+        Launch App
       </a>
     </nav>
   );

@@ -2,8 +2,6 @@ export const navLinks = [
   { label: 'Protocol', href: '#protocol' },
   { label: 'Workers', href: '#workers' },
   { label: 'Agencies', href: '#agencies' },
-  { label: '$IDRX', href: '#idrx' },
-  { label: 'Docs', href: '#docs' },
 ];
 
 export const stats = [
@@ -109,18 +107,11 @@ export const footerLinks = [
   { label: 'Protocol', href: '#protocol' },
   { label: 'Workers', href: '#workers' },
   { label: 'Agencies', href: '#agencies' },
-  { label: 'Docs', href: '#docs' },
   { label: 'Newsletter', href: '#newsletter' },
-  { label: 'Brand kit', href: '#' },
-  { label: 'Careers', href: '#' },
 ];
 
 export const socialLinks = [
   { name: 'Discord', icon: 'discord', url: '#' },
   { name: 'X', icon: 'twitter', url: '#' },
   { name: 'Telegram', icon: 'telegram', url: '#' },
-  { name: 'LinkedIn', icon: 'linkedin', url: '#' },
-  { name: 'YouTube', icon: 'youtube', url: '#' },
-  { name: 'Instagram', icon: 'instagram', url: '#' },
-  { name: 'TikTok', icon: 'tiktok', url: '#' },
 ];

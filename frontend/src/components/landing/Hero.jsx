@@ -20,7 +20,7 @@ const Hero = () => {
               Launch App
             </a>
             <a href="#agencies" className="btn-secondary">
-              For Agencies
+              Agencies
             </a>
           </div>
         </div>

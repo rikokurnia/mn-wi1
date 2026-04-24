@@ -66,6 +66,17 @@ main {
   border-radius: 100px;
   border: 1px solid rgba(0,0,0,0.06);
   box-shadow: 0 2px 20px rgba(0,0,0,0.06);
+  width: auto;
+  max-width: 95vw;
+}
+
+@media (max-width: 1024px) {
+  .navbar-links, .navbar-social, .navbar-divider:not(:first-of-type) {
+    display: none;
+  }
+  .navbar {
+    padding: 8px 8px 8px 16px;
+  }
 }
 
 .navbar-logo {
@@ -157,12 +168,22 @@ main {
 }
 
 .hero-title {
-  font-size: clamp(80px, 12vw, 180px);
+  font-size: clamp(64px, 12vw, 180px);
   font-weight: 900;
-  line-height: 0.9;
+  line-height: 0.95;
   letter-spacing: -0.04em;
   color: var(--caldera-black);
-  max-width: 70%;
+  max-width: 90%;
+}
+
+@media (max-width: 768px) {
+  .hero-section {
+    padding: 140px 24px 60px;
+  }
+  .hero-title {
+    max-width: 100%;
+    line-height: 1.0;
+  }
 }
 
 .hero-bottom {
@@ -273,6 +294,21 @@ main {
   gap: 16px;
   max-width: 1200px;
   margin: 0 auto;
+}
+
+@media (max-width: 1024px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+  .stats-section {
+    padding: 60px 24px;
+  }
 }
 
 .stat-card {
