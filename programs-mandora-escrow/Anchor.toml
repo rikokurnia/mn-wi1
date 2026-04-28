@@ -1,0 +1,25 @@
+[toolchain]
+package_manager = "yarn"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+programs_mandora_escrow = "6Dn1r6gSG4MrrvPEZjPk7x4PRxJZybxP6UKw5JKCxxVP"
+
+[programs.devnet]
+programs_mandora_escrow = "6Dn1r6gSG4MrrvPEZjPk7x4PRxJZybxP6UKw5JKCxxVP"
+
+[provider]
+cluster = "devnet"
+wallet = "~/.config/solana/mandora-devnet.json"
+
+[scripts]
+test = "cargo test"
+idl = "anchor idl build --out-file target/idl/programs_mandora_escrow.json"
+
+[idl]
+address = "6Dn1r6gSG4MrrvPEZjPk7x4PRxJZybxP6UKw5JKCxxVP"
+
+[hooks]

@@ -1,18 +1,24 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import { useWallet } from '@solana/wallet-adapter-react';
 import { 
   ArrowLeft, 
   MapPin, 
   Info, 
   DollarSign, 
   Target,
-  Rocket
+  Rocket,
+  Loader2,
+  CheckCircle
 } from 'lucide-react';
 import Link from 'next/link';
+import { Connection, PublicKey } from '@solana/web3.js';
+import { BN } from '@coral-xyz/anchor';
+import { getAssociatedTokenAddress } from '@solana/spl-token';
+import { getProgram, createEscrowTx, getEscrowPDA, uuidToJobIdSync } from '@/lib/solana/client';
 
-// Dynamically import map to avoid SSR window error
 const JobMapPicker = dynamic(() => import('@/components/ops/JobMapPicker'), { 
   ssr: false,
   loading: () => <div className="h-[400px] w-full bg-[#F5F2ED] animate-pulse rounded-[32px] border-4 border-white flex items-center justify-center">
@@ -20,30 +26,153 @@ const JobMapPicker = dynamic(() => import('@/components/ops/JobMapPicker'), {
   </div>
 });
 
+interface Category {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export default function NewJobPage() {
+  const { publicKey, signTransaction, connected } = useWallet();
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState('');
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    reward: '',
-    lat: -6.2297, // Default to Sudirman, Jakarta
+    category_id: '',
+    payout_idrx: '',
+    lat: -6.2297,
     lng: 106.8166,
-    radius: 100
+    radius: 100,
+    location_name: 'Jakarta Selatan'
   });
+
+  useEffect(() => {
+    fetch('/api/categories')
+      .then(r => r.json())
+      .then(data => setCategories(data.categories || []))
+      .catch(console.error);
+  }, []);
 
   const handleLocationChange = (lat: number, lng: number) => {
     setFormData(prev => ({ ...prev, lat, lng }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Deploying Job:', formData);
-    // Logic for smart contract call would go here
+    if (!publicKey || !signTransaction) {
+      setError('Please connect your wallet first');
+      return;
+    }
+    if (!formData.title || !formData.payout_idrx) {
+      setError('Title and reward are required');
+      return;
+    }
+
+    setSubmitting(true);
+    setError('');
+
+    try {
+      // 1. Create job in Supabase
+      const jobRes = await fetch('/api/jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: formData.title,
+          description: formData.description,
+          category_id: formData.category_id || null,
+          payout_idrx: parseInt(formData.payout_idrx),
+          location_name: formData.location_name,
+          latitude: formData.lat,
+          longitude: formData.lng,
+          geofence_radius_m: formData.radius,
+          status: 'open'
+        })
+      });
+
+      if (!jobRes.ok) {
+        const err = await jobRes.json();
+        throw new Error(err.error || 'Failed to create job');
+      }
+
+      const { job } = await jobRes.json();
+
+      // 2. Fund escrow on-chain
+      const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC!, 'confirmed');
+      const wallet = { publicKey, signTransaction } as any;
+      const program = getProgram(connection, wallet);
+
+      const jobId = uuidToJobIdSync(job.id); // 16 bytes for on-chain PDA
+      const mint = new PublicKey(process.env.NEXT_PUBLIC_IDRX_MINT!);
+      const amount = new BN(parseInt(formData.payout_idrx) * 1_000_000); // 6 decimals
+      const latScaled = new BN(Math.round(formData.lat * 1_000_000));
+      const lngScaled = new BN(Math.round(formData.lng * 1_000_000));
+      const deadline = new BN(Math.floor(Date.now() / 1000) + 86400 * 7); // 7 days
+
+      const authorityTokenAccount = await getAssociatedTokenAddress(mint, publicKey);
+
+      const tx = await createEscrowTx(
+        program,
+        publicKey,
+        authorityTokenAccount,
+        mint,
+        jobId,
+        amount,
+        latScaled,
+        lngScaled,
+        formData.radius,
+        deadline
+      );
+
+      const [escrowPDA] = getEscrowPDA(publicKey, jobId);
+
+      // 3. Update job with escrow info
+      await fetch('/api/jobs/' + job.id, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          escrow_pubkey: escrowPDA.toBase58(),
+          escrow_tx: tx
+        })
+      });
+
+      setSuccess(true);
+      setFormData({
+        title: '', description: '', category_id: '', payout_idrx: '',
+        lat: -6.2297, lng: 106.8166, radius: 100, location_name: 'Jakarta Selatan'
+      });
+    } catch (err: any) {
+      setError(err.message || 'Transaction failed');
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  if (success) {
+    return (
+      <div className="p-10 max-w-2xl mx-auto text-center space-y-8">
+        <CheckCircle className="h-20 w-20 text-green-500 mx-auto" />
+        <h1 className="text-4xl font-black text-[#0A0A0A] tracking-tighter uppercase">Job Published!</h1>
+        <p className="text-[#6B6B6B] font-bold">Your task has been posted to the network and funded in escrow.</p>
+        <div className="flex gap-4 justify-center">
+          <Link href="/jobs" className="px-8 py-4 bg-[#0A0A0A] text-white rounded-full font-black text-sm uppercase tracking-widest hover:bg-black/80 transition-all">
+            View Jobs
+          </Link>
+          <button onClick={() => setSuccess(false)} className="px-8 py-4 bg-white border-2 border-[#D4D0CA] text-[#0A0A0A] rounded-full font-black text-sm uppercase tracking-widest hover:border-[#0A0A0A] transition-all">
+            Create Another
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-10 max-w-5xl mx-auto space-y-10">
       <div className="flex items-center gap-6">
-        <Link href="/dashboard" className="h-12 w-12 bg-white border-2 border-[#D4D0CA] rounded-2xl flex items-center justify-center hover:border-[#0A0A0A] transition-all">
+        <Link href="/jobs" className="h-12 w-12 bg-white border-2 border-[#D4D0CA] rounded-2xl flex items-center justify-center hover:border-[#0A0A0A] transition-all">
           <ArrowLeft className="h-5 w-5 text-[#0A0A0A]" />
         </Link>
         <div>
@@ -56,8 +185,19 @@ export default function NewJobPage() {
         </div>
       </div>
 
+      {!connected && (
+        <div className="bg-amber-50 border-2 border-amber-200 p-6 rounded-3xl">
+          <p className="text-sm font-bold text-amber-800">⚠️ Connect your wallet to create and fund escrows</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border-2 border-red-200 p-6 rounded-3xl">
+          <p className="text-sm font-bold text-red-800">❌ {error}</p>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-        {/* Left Side: Form Fields */}
         <div className="space-y-8">
           <section className="space-y-6">
             <div className="space-y-2">
@@ -68,7 +208,22 @@ export default function NewJobPage() {
                 className="w-full bg-white border-2 border-[#D4D0CA] p-5 rounded-[24px] font-bold text-[#0A0A0A] outline-none focus:border-[#FF4D00] transition-all"
                 value={formData.title}
                 onChange={(e) => setFormData({...formData, title: e.target.value})}
+                required
               />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-[#6B6B6B] uppercase tracking-widest ml-4">CATEGORY</label>
+              <select
+                className="w-full bg-white border-2 border-[#D4D0CA] p-5 rounded-[24px] font-bold text-[#0A0A0A] outline-none focus:border-[#FF4D00] transition-all"
+                value={formData.category_id}
+                onChange={(e) => setFormData({...formData, category_id: e.target.value})}
+              >
+                <option value="">Select category...</option>
+                {categories.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
 
             <div className="space-y-2">
@@ -90,8 +245,9 @@ export default function NewJobPage() {
                     type="number" 
                     placeholder="150000"
                     className="w-full bg-white border-2 border-[#D4D0CA] p-5 pl-12 rounded-[24px] font-bold text-[#0A0A0A] outline-none focus:border-[#FF4D00] transition-all"
-                    value={formData.reward}
-                    onChange={(e) => setFormData({...formData, reward: e.target.value})}
+                    value={formData.payout_idrx}
+                    onChange={(e) => setFormData({...formData, payout_idrx: e.target.value})}
+                    required
                   />
                   <DollarSign className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-[#6B6B6B]" />
                 </div>
@@ -126,7 +282,6 @@ export default function NewJobPage() {
           </div>
         </div>
 
-        {/* Right Side: Map Picker */}
         <div className="space-y-8">
           <div className="space-y-2">
             <label className="text-[10px] font-black text-[#6B6B6B] uppercase tracking-widest ml-4">GEOFENCE LOCATION</label>
@@ -146,13 +301,17 @@ export default function NewJobPage() {
           <div className="space-y-4 pt-4">
              <button 
               type="submit"
-              className="w-full py-6 bg-[#0A0A0A] text-white rounded-full font-black text-lg uppercase tracking-widest shadow-2xl hover:bg-black/80 transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
+              disabled={submitting || !connected}
+              className="w-full py-6 bg-[#0A0A0A] text-white rounded-full font-black text-lg uppercase tracking-widest shadow-2xl hover:bg-black/80 transition-all flex items-center justify-center gap-3 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Rocket className="h-6 w-6 text-[#FF4D00]" />
-              Publish to Network
+              {submitting ? (
+                <><Loader2 className="h-6 w-6 animate-spin" /> Processing...</>
+              ) : (
+                <><Rocket className="h-6 w-6 text-[#FF4D00]" /> Publish & Fund Escrow</>
+              )}
             </button>
             <p className="text-center text-[10px] font-bold text-[#6B6B6B] uppercase tracking-wider">
-              Network Fee: 0.0005 SOL
+              Network Fee: ~0.0005 SOL | IDRX will be locked until proof is submitted
             </p>
           </div>
         </div>

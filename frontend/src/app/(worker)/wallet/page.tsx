@@ -1,23 +1,79 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { Connection, PublicKey } from '@solana/web3.js';
+import { getAssociatedTokenAddress } from '@solana/spl-token';
 import { 
   TrendingUp, 
   ArrowDownLeft, 
-  ArrowUpRight, 
+  ArrowUpRight,
   Wallet as WalletIcon,
   Zap,
-  ExternalLink
+  ExternalLink,
+  Loader2
 } from 'lucide-react';
 
-const transactions = [
-  { id: 'TX-4921', job: 'AC Maintenance - Kuningan', date: 'Oct 24, 2023', amount: '150,000', type: 'credit', status: 'Completed' },
-  { id: 'TX-4812', job: 'Poster Audit - Sudirman', date: 'Oct 22, 2023', amount: '50,000', type: 'credit', status: 'Completed' },
-  { id: 'TX-4755', job: 'Cash-out to Bank', date: 'Oct 20, 2023', amount: '200,000', type: 'debit', status: 'Processing' },
-  { id: 'TX-4610', job: 'Cleanliness Check - Menteng', date: 'Oct 18, 2023', amount: '120,000', type: 'credit', status: 'Completed' },
-];
+const IDRX_DECIMALS = 6;
+const IDRX_MINT = process.env.NEXT_PUBLIC_IDRX_MINT!;
 
 export default function WalletPage() {
+  const { publicKey, connected } = useWallet();
+  const [balance, setBalance] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!publicKey || !connected) {
+      setBalance(null);
+      return;
+    }
+
+    const loadBalance = async () => {
+      setLoading(true);
+      try {
+        const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC!, 'confirmed');
+        const mint = new PublicKey(IDRX_MINT);
+        const ata = await getAssociatedTokenAddress(mint, publicKey);
+        
+        try {
+          const account = await connection.getTokenAccountBalance(ata);
+          const raw = account.value.amount;
+          const idrx = parseInt(raw) / Math.pow(10, IDRX_DECIMALS);
+          setBalance(idrx);
+        } catch {
+          // ATA doesn't exist yet — balance is 0
+          setBalance(0);
+        }
+      } catch {
+        setBalance(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadBalance();
+    const interval = setInterval(loadBalance, 15000); // refresh every 15s
+    return () => clearInterval(interval);
+  }, [publicKey, connected]);
+
+  const formatIdrx = (val: number) => {
+    if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(2)}M`;
+    if (val >= 1_000) return `${(val / 1_000).toFixed(1)}K`;
+    return val.toFixed(IDRX_DECIMALS > 0 ? 2 : 0);
+  };
+
+  if (!connected) {
+    return (
+      <div className="p-8 max-w-md mx-auto flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="h-16 w-16 bg-white/5 rounded-full flex items-center justify-center mb-6">
+          <WalletIcon className="h-8 w-8 text-[#FF4D00]" />
+        </div>
+        <h2 className="text-2xl font-black text-white uppercase tracking-tight text-center mb-2">Connect Wallet</h2>
+        <p className="text-sm font-bold text-[#6B6B6B] text-center">Connect your Phantom wallet to view your IDRX balance and earnings.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="p-8 space-y-10 max-w-md mx-auto">
       {/* Header */}
@@ -40,23 +96,40 @@ export default function WalletPage() {
         <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-700" />
         
         <div className="space-y-1 relative z-10">
-          <p className="text-[10px] font-black text-white/70 uppercase tracking-widest">TOTAL EARNINGS</p>
-          <div className="flex items-baseline gap-2">
-            <span className="text-4xl font-black text-white tracking-tighter">Rp 1.420.000</span>
-            <div className="flex items-center text-[10px] font-black text-white/90 bg-white/20 px-2 py-0.5 rounded-full">
-              <TrendingUp className="h-3 w-3 mr-1" />
-              +12%
+          <p className="text-[10px] font-black text-white/70 uppercase tracking-widest">IDRX BALANCE</p>
+          {loading && balance === null ? (
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-6 w-6 text-white/70 animate-spin" />
+              <span className="text-2xl font-black text-white/70">Loading...</span>
             </div>
-          </div>
+          ) : (
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-black text-white tracking-tighter">
+                Rp {formatIdrx(balance ?? 0)}
+              </span>
+              <div className="flex items-center text-[10px] font-black text-white/90 bg-white/20 px-2 py-0.5 rounded-full">
+                <TrendingUp className="h-3 w-3 mr-1" />
+                IDRX
+              </div>
+            </div>
+          )}
+          <p className="text-[9px] font-bold text-white/50 mt-1">
+            {publicKey?.toBase58().slice(0, 6)}...{publicKey?.toBase58().slice(-4)} · Devnet
+          </p>
         </div>
 
         <div className="mt-10 flex gap-3 relative z-10">
-          <button className="flex-1 py-4 bg-white text-[#FF4D00] rounded-full font-black text-xs uppercase tracking-widest hover:bg-white/90 transition-all active:scale-[0.98]">
+          <button disabled className="flex-1 py-4 bg-white text-[#FF4D00] rounded-full font-black text-xs uppercase tracking-widest opacity-50 cursor-not-allowed">
             Cash Out
           </button>
-          <button className="h-12 w-12 bg-white/20 backdrop-blur-md text-white rounded-full flex items-center justify-center hover:bg-white/30 transition-all">
+          <a 
+            href={`https://solscan.io/account/${publicKey?.toBase58()}?cluster=devnet`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="h-12 w-12 bg-white/20 backdrop-blur-md text-white rounded-full flex items-center justify-center hover:bg-white/30 transition-all"
+          >
             <ExternalLink className="h-5 w-5" />
-          </button>
+          </a>
         </div>
       </div>
 
@@ -64,44 +137,30 @@ export default function WalletPage() {
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-[#1A1A1A] p-6 rounded-[32px] border border-white/5">
           <p className="text-[9px] font-black text-[#6B6B6B] uppercase tracking-widest mb-1">THIS MONTH</p>
-          <p className="text-xl font-black text-white uppercase tracking-tighter">Rp 540k</p>
+          <p className="text-xl font-black text-white uppercase tracking-tighter">Rp 0</p>
         </div>
         <div className="bg-[#1A1A1A] p-6 rounded-[32px] border border-white/5">
           <p className="text-[9px] font-black text-[#6B6B6B] uppercase tracking-widest mb-1">GAS SAVED</p>
-          <p className="text-xl font-black text-[#FF4D00] uppercase tracking-tighter">0.04 SOL</p>
+          <p className="text-xl font-black text-[#FF4D00] uppercase tracking-tighter">0 SOL</p>
         </div>
       </div>
 
-      {/* History */}
-      <div className="space-y-6 pb-12">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-black text-white uppercase tracking-[0.2em]">Activity History</h3>
-          <button className="text-[10px] font-black text-[#6B6B6B] uppercase tracking-widest border-b border-[#6B6B6B] pb-0.5">Filter</button>
-        </div>
-
-        <div className="space-y-4">
-          {transactions.map((tx) => (
-            <div key={tx.id} className="bg-[#1A1A1A]/50 border border-white/5 p-5 rounded-[28px] flex items-center justify-between hover:bg-[#1A1A1A] transition-all group cursor-pointer">
-              <div className="flex items-center gap-4">
-                <div className={`h-10 w-10 rounded-2xl flex items-center justify-center ${
-                  tx.type === 'credit' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
-                }`}>
-                  {tx.type === 'credit' ? <ArrowDownLeft className="h-5 w-5" /> : <ArrowUpRight className="h-5 w-5" />}
-                </div>
-                <div>
-                  <div className="text-xs font-black text-white uppercase tracking-tight group-hover:text-[#FF4D00] transition-colors">{tx.job}</div>
-                  <div className="text-[10px] font-bold text-[#6B6B6B] mt-1">{tx.date}</div>
-                </div>
+      {/* How it works */}
+      <div className="bg-[#1A1A1A] p-6 rounded-[32px] border border-white/5">
+        <h3 className="text-xs font-black text-white uppercase tracking-widest mb-4">How Payment Works</h3>
+        <div className="space-y-3">
+          {[
+            { icon: Zap, label: 'Complete a task', desc: 'Submit GPS + photo proof' },
+            { icon: TrendingUp, label: 'Auto-release', desc: 'IDRX sent to your wallet instantly' },
+            { icon: ArrowDownLeft, label: 'Track earnings', desc: 'Balance updates in real-time' },
+          ].map(({ icon: Icon, label, desc }) => (
+            <div key={label} className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-xl bg-[#FF4D00]/10 flex items-center justify-center flex-shrink-0">
+                <Icon className="h-4 w-4 text-[#FF4D00]" />
               </div>
-              <div className="text-right">
-                <div className={`text-sm font-black ${tx.type === 'credit' ? 'text-white' : 'text-[#6B6B6B]'}`}>
-                  {tx.type === 'credit' ? '+' : '-'}{tx.amount}
-                </div>
-                <div className={`text-[8px] font-black uppercase tracking-widest mt-1 ${
-                  tx.status === 'Completed' ? 'text-green-500/50' : 'text-amber-500/50'
-                }`}>
-                  {tx.status}
-                </div>
+              <div>
+                <p className="text-xs font-black text-white">{label}</p>
+                <p className="text-[10px] font-bold text-[#6B6B6B]">{desc}</p>
               </div>
             </div>
           ))}

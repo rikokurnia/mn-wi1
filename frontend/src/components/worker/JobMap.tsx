@@ -13,18 +13,19 @@ const orangeIcon = L.divIcon({
   iconAnchor: [12, 12],
 });
 
-interface Job {
+interface MapJob {
   id: string;
   title: string;
   reward: string;
   lat: number;
   lng: number;
   category: string;
+  desc?: string;
 }
 
 interface JobMapProps {
-  jobs: Job[];
-  onSelectJob: (job: Job) => void;
+  jobs: MapJob[];
+  onSelectJob: (job: MapJob) => void;
 }
 
 function ChangeView({ center, zoom }: { center: [number, number], zoom: number }) {

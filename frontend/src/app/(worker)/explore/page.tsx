@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { Drawer } from 'vaul';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { useRouter } from 'next/navigation';
 import { 
   MapPin, 
   Zap, 
@@ -10,7 +12,8 @@ import {
   ShieldCheck, 
   Navigation,
   Search,
-  X
+  Loader2,
+  CheckCircle
 } from 'lucide-react';
 
 const JobMap = dynamic(() => import('@/components/worker/JobMap'), { 
@@ -20,20 +23,97 @@ const JobMap = dynamic(() => import('@/components/worker/JobMap'), {
   </div>
 });
 
-const MOCK_JOBS = [
-  { id: '1', title: 'AC Maintenance - Kuningan', reward: '150,000', lat: -6.2297, lng: 106.8166, category: 'Technical', desc: 'Verify and clean the outdoor unit of AC at Kuningan Office Tower. Must be within 50m of coordinates.' },
-  { id: '2', title: 'Poster Audit - Sudirman', reward: '50,000', lat: -6.2247, lng: 106.8216, category: 'Audit', desc: 'Confirm presence of Mandora posters at the Sudirman bus stop. Photo proof required.' },
-  { id: '3', title: 'Cleanliness Check - Menteng', reward: '120,000', lat: -6.2147, lng: 106.8316, category: 'Review', desc: 'Report on the hygiene of the Menteng public park area. GPS verification mandatory.' },
-];
+interface Job {
+  id: string;
+  title: string;
+  description: string;
+  payout_idrx: number;
+  latitude: number;
+  longitude: number;
+  geofence_radius_m: number;
+  location_name: string;
+  escrow_pubkey: string | null;
+  categories: { name: string; icon: string } | null;
+}
 
 export default function ExplorePage() {
-  const [selectedJob, setSelectedJob] = useState<typeof MOCK_JOBS[0] | null>(null);
+  const { publicKey, connected } = useWallet();
+  const router = useRouter();
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [open, setOpen] = useState(false);
+  const [accepting, setAccepting] = useState(false);
+  const [accepted, setAccepted] = useState<string | null>(null);
 
-  const handleSelectJob = (job: typeof MOCK_JOBS[0]) => {
-    setSelectedJob(job);
+  const loadJobs = useCallback(() => {
+    fetch('/api/jobs?status=open')
+      .then(r => r.json())
+      .then(data => {
+        setJobs(data.jobs || []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadJobs();
+  }, [loadJobs]);
+
+  const handleSelectJob = (job: any) => {
+    const fullJob = jobs.find(j => j.id === job.id) || null;
+    setSelectedJob(fullJob);
     setOpen(true);
   };
+
+  const handleAcceptJob = async (job: Job) => {
+    if (!publicKey) {
+      alert('Please connect your wallet first');
+      return;
+    }
+    if (!connected) {
+      alert('Wallet not connected');
+      return;
+    }
+
+    setAccepting(true);
+    try {
+      const res = await fetch(`/api/jobs/${job.id}/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ worker_wallet: publicKey.toBase58() })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || 'Failed to accept job');
+        return;
+      }
+
+      setAccepted(job.id);
+      setOpen(false);
+
+      // Redirect to active job after brief delay
+      setTimeout(() => {
+        router.push('/active');
+      }, 800);
+    } catch (err) {
+      alert('Network error. Please try again.');
+    } finally {
+      setAccepting(false);
+    }
+  };
+
+  const mapJobs = jobs.map(j => ({
+    id: j.id,
+    title: j.title,
+    reward: j.payout_idrx.toLocaleString('id-ID'),
+    lat: j.latitude,
+    lng: j.longitude,
+    category: j.categories?.name || 'General',
+    desc: j.description || j.location_name,
+  }));
 
   return (
     <div className="h-screen w-full relative">
@@ -49,18 +129,17 @@ export default function ExplorePage() {
             />
           </div>
           
-          <div className="flex gap-2 pointer-events-auto overflow-x-auto pb-2 scrollbar-hide">
-            {['All', 'Technical', 'Audit', 'Review', 'Urgent'].map((cat) => (
-              <button key={cat} className="whitespace-nowrap px-4 py-2 bg-[#1A1A1A] border border-white/5 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-[#FF4D00] transition-colors">
-                {cat}
-              </button>
-            ))}
-          </div>
+          {loading && (
+            <div className="flex items-center justify-center gap-2 pointer-events-auto">
+              <Loader2 className="h-4 w-4 text-[#FF4D00] animate-spin" />
+              <span className="text-xs font-bold text-[#6B6B6B]">Loading jobs...</span>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Map Background */}
-      <JobMap jobs={MOCK_JOBS} onSelectJob={handleSelectJob} />
+      <JobMap jobs={mapJobs} onSelectJob={handleSelectJob} />
 
       {/* Job Details Drawer */}
       <Drawer.Root open={open} onOpenChange={setOpen}>
@@ -74,10 +153,12 @@ export default function ExplorePage() {
                 <div className="max-w-md mx-auto space-y-8 px-4 overflow-y-auto max-h-full pb-10">
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black text-[#FF4D00] uppercase tracking-[0.3em]">{selectedJob.category}</span>
+                      <span className="text-[10px] font-black text-[#FF4D00] uppercase tracking-[0.3em]">
+                        {selectedJob.categories?.name || 'GENERAL'}
+                      </span>
                       <div className="flex items-center gap-1 text-[#6B6B6B] text-[10px] font-black uppercase tracking-widest">
                         <Clock className="h-3 w-3" />
-                        2h left
+                        Open
                       </div>
                     </div>
                     <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">
@@ -88,26 +169,47 @@ export default function ExplorePage() {
                   <div className="flex gap-4">
                     <div className="flex-1 bg-white/5 p-4 rounded-3xl border border-white/5">
                       <p className="text-[10px] font-black text-[#6B6B6B] uppercase tracking-widest mb-1">REWARD</p>
-                      <p className="text-xl font-black text-[#FF4D00]">Rp {selectedJob.reward}</p>
+                      <p className="text-xl font-black text-[#FF4D00]">Rp {selectedJob.payout_idrx.toLocaleString('id-ID')}</p>
                     </div>
                     <div className="flex-1 bg-white/5 p-4 rounded-3xl border border-white/5">
                       <p className="text-[10px] font-black text-[#6B6B6B] uppercase tracking-widest mb-1">GEOFENCE</p>
-                      <p className="text-xl font-black text-white">50m</p>
+                      <p className="text-xl font-black text-white">{selectedJob.geofence_radius_m}m</p>
                     </div>
                   </div>
 
                   <div className="space-y-4">
                     <h3 className="text-sm font-black text-white uppercase tracking-widest">Requirements</h3>
                     <p className="text-xs font-bold text-[#6B6B6B] leading-relaxed">
-                      {selectedJob.desc}
+                      {selectedJob.description || selectedJob.location_name}
                     </p>
                   </div>
 
                   <div className="space-y-3 pt-4">
-                    <button className="w-full py-5 bg-[#FF4D00] text-white rounded-full font-black text-sm uppercase tracking-[0.2em] shadow-xl shadow-orange-900/20 flex items-center justify-center gap-3 active:scale-[0.98] transition-transform">
-                      <Zap className="h-5 w-5" />
-                      Accept Job
-                    </button>
+                    {accepted === selectedJob.id ? (
+                      <div className="w-full py-5 bg-green-500 text-white rounded-full font-black text-sm uppercase tracking-[0.2em] flex items-center justify-center gap-3">
+                        <CheckCircle className="h-5 w-5" />
+                        Job Accepted! Redirecting...
+                      </div>
+                    ) : (
+                      <>
+                        <button 
+                          className="w-full py-5 bg-[#FF4D00] text-white rounded-full font-black text-sm uppercase tracking-[0.2em] shadow-xl shadow-orange-900/20 flex items-center justify-center gap-3 active:scale-[0.98] transition-transform disabled:opacity-50"
+                          onClick={() => handleAcceptJob(selectedJob)}
+                          disabled={accepting || !connected}
+                        >
+                          {accepting ? (
+                            <><Loader2 className="h-5 w-5 animate-spin" /> Accepting...</>
+                          ) : (
+                            <><Zap className="h-5 w-5" /> Accept Job</>
+                          )}
+                        </button>
+                        {!connected && (
+                          <p className="text-[10px] text-center font-bold text-amber-500">
+                            Connect wallet to accept
+                          </p>
+                        )}
+                      </>
+                    )}
                     <button className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-full font-black text-sm uppercase tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-white/10 transition-colors">
                       <Navigation className="h-5 w-5" />
                       Navigate
