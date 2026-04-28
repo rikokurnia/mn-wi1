@@ -43,6 +43,7 @@ export default function VerificationPage() {
   const [withinGeofence, setWithinGeofence] = useState(false);
   const [photoTaken, setPhotoTaken] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
+  const [photoData, setPhotoData] = useState<string | null>(null);
 
   useEffect(() => {
     if (!publicKey) return;
@@ -105,6 +106,8 @@ export default function VerificationPage() {
       canvas.height = videoRef.current.videoHeight || 480;
       const ctx = canvas.getContext('2d');
       if (ctx) ctx.drawImage(videoRef.current, 0, 0);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      setPhotoData(dataUrl);
     }
     setPhotoTaken(true);
     setCameraActive(false);
@@ -136,6 +139,15 @@ export default function VerificationPage() {
       const workerLng = new BN(Math.round((currentPosition?.lng || job.longitude) * 1_000_000));
       const photoHash = new Uint8Array(32);
       await submitProofTx(program, publicKey, authority, workerTokenAccount, authorityTokenAccount, jobId, workerLat, workerLng, photoHash);
+      
+      if (photoData) {
+        await fetch(`/api/jobs/${job.id}/proof`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_base64: photoData })
+        });
+      }
+
       await fetch(`/api/jobs/${job.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
