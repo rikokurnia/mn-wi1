@@ -1,57 +1,120 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, 
   Award, 
-  MapPin, 
   CheckCircle2, 
   ChevronRight,
   Settings,
   Bell,
   HelpCircle,
   LogOut,
-  Zap
+  ExternalLink,
+  Loader2,
+  Camera,
+  Clock
 } from 'lucide-react';
 
-const stats = [
-  { label: 'Completed', value: '42', icon: CheckCircle2 },
-  { label: 'Accuracy', value: '98%', icon: ShieldCheck },
-  { label: 'Level', value: '04', icon: Award },
-];
+import { useWorkerWallet } from '@/components/worker/WorkerWalletContext';
 
-const achievements = [
-  { id: 1, title: 'Early Bird', icon: '🌅', color: 'bg-amber-100/10' },
-  { id: 2, title: 'Sudirman King', icon: '🏙️', color: 'bg-blue-100/10' },
-  { id: 3, title: 'Trusted', icon: '✅', color: 'bg-green-100/10' },
-];
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+
+interface HistoryJob {
+  id: string;
+  title: string;
+  payout_idrx: number;
+  status: string;
+  location_name: string;
+  proof_submitted_at: string | null;
+  proof_photo_url: string | null;
+  escrow_tx: string | null;
+  created_at: string;
+}
 
 export default function ProfilePage() {
+  const { publicKey, connected, logout } = useWorkerWallet();
+  const [history, setHistory] = useState<HistoryJob[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!publicKey || !connected) {
+      setHistory([]);
+      setLoading(false);
+      return;
+    }
+
+    const loadHistory = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/workers/${publicKey.toBase58()}/history`);
+        const data = await res.json();
+        setHistory(data.jobs || []);
+      } catch {
+        setHistory([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadHistory();
+  }, [publicKey, connected]);
+
+  const completedJobs = history.filter(j => j.status === 'completed');
+  const rejectedJobs = history.filter(j => j.status === 'cancelled');
+  const totalJobs = completedJobs.length + rejectedJobs.length;
+  const accuracy = totalJobs > 0 ? Math.round((completedJobs.length / totalJobs) * 100) : 100;
+  const level = Math.floor(completedJobs.length / 3) + 1;
+  const trustScore = Math.min(1000, 500 + completedJobs.length * 50 - rejectedJobs.length * 100);
+  const trustPercent = Math.round((trustScore / 1000) * 100);
+
+  const walletDisplay = publicKey 
+    ? `${publicKey.toBase58().slice(0, 6)}...${publicKey.toBase58().slice(-4)}`
+    : 'Not Connected';
+
+  const stats = [
+    { label: 'Completed', value: completedJobs.length.toString(), icon: CheckCircle2 },
+    { label: 'Accuracy', value: `${accuracy}%`, icon: ShieldCheck },
+    { label: 'Level', value: level.toString().padStart(2, '0'), icon: Award },
+  ];
+
+  const getProofImgUrl = (job: HistoryJob) => {
+    if (job.proof_photo_url) return job.proof_photo_url;
+    return `${supabaseUrl}/storage/v1/object/public/proofs/job_proof_${job.id}.jpg`;
+  };
+
+  // Dynamic achievements based on real activity
+  const achievements = [
+    ...(completedJobs.length >= 1 ? [{ id: 1, title: 'First Job', icon: '🎯', color: 'bg-green-100/10', active: true }] : []),
+    ...(completedJobs.length >= 5 ? [{ id: 2, title: 'Grinder', icon: '💪', color: 'bg-blue-100/10', active: true }] : []),
+    ...(accuracy >= 90 ? [{ id: 3, title: 'Trusted', icon: '✅', color: 'bg-green-100/10', active: true }] : []),
+    ...(level >= 3 ? [{ id: 4, title: 'Pro', icon: '⭐', color: 'bg-amber-100/10', active: true }] : []),
+  ];
+
   return (
-    <div className="p-8 space-y-10 max-w-md mx-auto pb-24">
+    <div className="p-8 space-y-10 max-w-md mx-auto pb-32">
       {/* Profile Header */}
       <div className="flex flex-col items-center text-center space-y-4 pt-6">
         <div className="relative">
           <div className="h-32 w-32 rounded-[48px] bg-gradient-to-tr from-[#FF4D00] to-[#7B6EF6] p-1 shadow-2xl">
             <div className="h-full w-full rounded-[44px] bg-[#0A0A0A] p-1">
               <img 
-                src="https://api.dicebear.com/7.x/avataaars/svg?seed=Mandora" 
+                src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${publicKey?.toBase58() || 'default'}`} 
                 alt="avatar" 
                 className="h-full w-full rounded-[40px] object-cover"
               />
             </div>
           </div>
           <div className="absolute -bottom-2 -right-2 bg-[#FF4D00] text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border-4 border-[#0A0A0A]">
-            LVL 4
+            LVL {level}
           </div>
         </div>
         
         <div>
           <h1 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">
-            Riko Kurnia
+            {walletDisplay}
           </h1>
           <p className="text-[10px] font-black text-[#6B6B6B] uppercase tracking-[0.3em] mt-2">
-            TRUST SCORE: 940 / 1000
+            TRUST SCORE: {loading ? '...' : `${trustScore} / 1000`}
           </p>
         </div>
       </div>
@@ -60,13 +123,16 @@ export default function ProfilePage() {
       <div className="bg-[#1A1A1A] p-6 rounded-[32px] border border-white/5 space-y-4">
         <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
           <span className="text-[#6B6B6B]">Trust Progress</span>
-          <span className="text-[#FF4D00]">94%</span>
+          <span className="text-[#FF4D00]">{loading ? '...' : `${trustPercent}%`}</span>
         </div>
         <div className="h-3 w-full bg-white/5 rounded-full overflow-hidden p-0.5">
-          <div className="h-full bg-gradient-to-r from-[#FF4D00] to-[#7B6EF6] rounded-full shadow-[0_0_20px_rgba(255,77,0,0.5)]" style={{ width: '94%' }} />
+          <div 
+            className="h-full bg-gradient-to-r from-[#FF4D00] to-[#7B6EF6] rounded-full shadow-[0_0_20px_rgba(255,77,0,0.5)] transition-all duration-700" 
+            style={{ width: loading ? '0%' : `${trustPercent}%` }} 
+          />
         </div>
         <p className="text-[9px] font-bold text-[#6B6B6B] text-center leading-relaxed">
-          Maintain high accuracy to unlock high-reward Agency tasks.
+          Complete more jobs with high accuracy to level up.
         </p>
       </div>
 
@@ -75,26 +141,100 @@ export default function ProfilePage() {
         {stats.map((stat) => (
           <div key={stat.label} className="bg-[#1A1A1A] p-4 rounded-[28px] border border-white/5 flex flex-col items-center justify-center text-center space-y-1">
             <stat.icon className="h-4 w-4 text-[#FF4D00] mb-1" />
-            <div className="text-sm font-black text-white">{stat.value}</div>
+            <div className="text-sm font-black text-white">{loading ? '...' : stat.value}</div>
             <div className="text-[8px] font-black text-[#6B6B6B] uppercase tracking-widest">{stat.label}</div>
           </div>
         ))}
       </div>
 
       {/* Achievements */}
-      <div className="space-y-4">
-        <h3 className="text-sm font-black text-white uppercase tracking-[0.2em]">Achievements</h3>
-        <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
-          {achievements.map((item) => (
-            <div key={item.id} className={`${item.color} h-20 w-20 flex-shrink-0 rounded-[28px] border border-white/5 flex flex-col items-center justify-center gap-1 grayscale opacity-50 hover:grayscale-0 hover:opacity-100 transition-all cursor-pointer`}>
-              <span className="text-2xl">{item.icon}</span>
-              <span className="text-[8px] font-black text-white uppercase tracking-tighter">{item.title}</span>
+      {achievements.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="text-sm font-black text-white uppercase tracking-[0.2em]">Achievements</h3>
+          <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+            {achievements.map((item) => (
+              <div key={item.id} className={`${item.color} h-20 w-20 flex-shrink-0 rounded-[28px] border border-white/5 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer`}>
+                <span className="text-2xl">{item.icon}</span>
+                <span className="text-[8px] font-black text-white uppercase tracking-tighter">{item.title}</span>
+              </div>
+            ))}
+            <div className="h-20 w-20 flex-shrink-0 rounded-[28px] bg-white/5 border border-dashed border-white/10 flex items-center justify-center">
+              <span className="text-xl opacity-20">?</span>
             </div>
-          ))}
-          <div className="h-20 w-20 flex-shrink-0 rounded-[28px] bg-white/5 border border-dashed border-white/10 flex items-center justify-center">
-            <span className="text-xl opacity-20">?</span>
           </div>
         </div>
+      )}
+
+      {/* Job History */}
+      <div className="space-y-4">
+        <h3 className="text-sm font-black text-white uppercase tracking-[0.2em]">Job History</h3>
+        
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-5 w-5 text-[#FF4D00] animate-spin" />
+          </div>
+        ) : history.length === 0 ? (
+          <div className="bg-[#1A1A1A] p-8 rounded-[32px] border border-white/5 text-center">
+            <p className="text-sm font-bold text-[#6B6B6B]">No jobs completed yet.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {history.map((job) => (
+              <div key={job.id} className="bg-[#1A1A1A] rounded-[24px] border border-white/5 overflow-hidden">
+                <div className="flex items-center gap-4 p-4">
+                  {/* Photo Thumbnail */}
+                  <div className="h-16 w-16 rounded-2xl bg-[#0A0A0A] overflow-hidden flex-shrink-0 border border-white/5">
+                    <img 
+                      src={getProofImgUrl(job)} 
+                      alt="" 
+                      className="h-full w-full object-cover"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-black text-white uppercase tracking-tight truncate mb-1">{job.title}</div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${
+                        job.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                        job.status === 'pending_review' ? 'bg-[#FF4D00]/20 text-[#FF4D00]' :
+                        job.status === 'cancelled' ? 'bg-red-500/20 text-red-400' :
+                        'bg-white/10 text-[#6B6B6B]'
+                      }`}>
+                        {job.status === 'pending_review' ? 'in review' : job.status}
+                      </span>
+                      <span className="text-[9px] font-bold text-[#6B6B6B]">{job.location_name}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-black text-[#FF4D00]">Rp {job.payout_idrx?.toLocaleString('id-ID')}</span>
+                      <span className="text-[9px] font-bold text-[#6B6B6B]">
+                        <Clock className="h-3 w-3 inline mr-0.5" />
+                        {job.proof_submitted_at 
+                          ? new Date(job.proof_submitted_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+                          : new Date(job.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Tx Link */}
+                  {job.escrow_tx && job.escrow_tx !== 'simulation-bypassed' && (
+                    <a
+                      href={`https://solscan.io/tx/${job.escrow_tx}?cluster=devnet`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="h-8 w-8 bg-white/5 rounded-lg flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-colors"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5 text-[#6B6B6B]" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Menu Links */}
@@ -102,7 +242,7 @@ export default function ProfilePage() {
         <h3 className="text-sm font-black text-white uppercase tracking-[0.2em] mb-4">Settings</h3>
         {[
           { label: 'Notifications', icon: Bell },
-          { label: 'Identity Verification', icon: ShieldCheck, detail: 'Level 2' },
+          { label: 'Identity Verification', icon: ShieldCheck, detail: `Level ${level}` },
           { label: 'Security & Privacy', icon: Settings },
           { label: 'Support Center', icon: HelpCircle },
         ].map((item) => (
@@ -120,7 +260,7 @@ export default function ProfilePage() {
           </button>
         ))}
         
-        <button className="w-full mt-6 bg-red-500/10 border border-red-500/20 p-5 rounded-[28px] flex items-center justify-center gap-3 text-red-500 font-black text-xs uppercase tracking-[0.2em] hover:bg-red-500/20 transition-all">
+        <button onClick={logout} className="w-full mt-6 bg-red-500/10 border border-red-500/20 p-5 rounded-[28px] flex items-center justify-center gap-3 text-red-500 font-black text-xs uppercase tracking-[0.2em] hover:bg-red-500/20 transition-all">
           <LogOut className="h-4 w-4" />
           Disconnect Wallet
         </button>

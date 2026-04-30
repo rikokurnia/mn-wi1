@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWorkerWallet } from '@/components/worker/WorkerWalletContext';
 import Link from 'next/link';
 import { Zap, MapPin, Clock, DollarSign, Loader2, Navigation } from 'lucide-react';
 
@@ -19,7 +19,7 @@ interface ActiveJob {
 }
 
 export default function ActivePage() {
-  const { publicKey, connected } = useWallet();
+  const { publicKey, connected } = useWorkerWallet();
   const [job, setJob] = useState<ActiveJob | null>(null);
   const [loading, setLoading] = useState(true);
   const [noJob, setNoJob] = useState(false);

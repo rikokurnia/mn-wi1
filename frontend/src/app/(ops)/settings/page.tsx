@@ -28,7 +28,7 @@ export default function SettingsPage() {
         },
         body: JSON.stringify({
           walletAddress: publicKey.toBase58(),
-          amount: 10000,
+          amount: 1000000, // Mint 1 Million IDRX so they never run out during testing
         }),
       });
 
@@ -38,7 +38,7 @@ export default function SettingsPage() {
         throw new Error(data.error || 'Failed to request tokens');
       }
 
-      setSuccess('Successfully received 10,000 IDRX!');
+      setSuccess('Successfully received 1,000,000 IDRX!');
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -104,7 +104,7 @@ export default function SettingsPage() {
                   MINTING TOKENS...
                 </>
               ) : (
-                'REQUEST 10,000 IDRX'
+                'REQUEST 1,000,000 IDRX'
               )}
             </button>
           </div>

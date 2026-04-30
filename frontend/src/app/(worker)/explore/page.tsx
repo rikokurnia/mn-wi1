@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { Drawer } from 'vaul';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWorkerWallet } from '@/components/worker/WorkerWalletContext';
 import { useRouter } from 'next/navigation';
 import { 
   MapPin, 
@@ -37,7 +37,7 @@ interface Job {
 }
 
 export default function ExplorePage() {
-  const { publicKey, connected } = useWallet();
+  const { publicKey, connected } = useWorkerWallet();
   const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -148,6 +148,8 @@ export default function ExplorePage() {
           <Drawer.Content className="bg-[#111111] border-t border-white/10 flex flex-col rounded-t-[40px] h-[70vh] fixed bottom-0 left-0 right-0 z-[2001] outline-none">
             <div className="p-4 bg-[#111111] rounded-t-[40px] flex-1">
               <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-white/20 mb-8" />
+              <Drawer.Title className="sr-only">Job Details</Drawer.Title>
+              <Drawer.Description className="sr-only">Information about the selected job</Drawer.Description>
               
               {selectedJob && (
                 <div className="max-w-md mx-auto space-y-8 px-4 overflow-y-auto max-h-full pb-10">

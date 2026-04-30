@@ -17,7 +17,8 @@ export async function PATCH(
   const { id } = await params
   const body = await request.json()
 
-  const { data, error } = await supabase
+  const sb = getServiceClient()
+  const { data, error } = await sb
     .from('jobs')
     .update(body)
     .eq('id', id)
@@ -37,7 +38,8 @@ export async function GET(
 ) {
   const { id } = await params
 
-  const { data, error } = await supabase
+  const sb = getServiceClient()
+  const { data, error } = await sb
     .from('jobs')
     .select('*, categories(name, icon)')
     .eq('id', id)

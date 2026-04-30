@@ -2,22 +2,63 @@
 
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import DashboardSidebar from '@/components/ops/DashboardSidebar';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { getAssociatedTokenAddress } from '@solana/spl-token';
+import { PublicKey } from '@solana/web3.js';
+import { Coins, Loader2 } from 'lucide-react';
 
 export default function OpsLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { connected, disconnecting } = useWallet();
+  const { publicKey, connected, disconnecting } = useWallet();
+  const { connection } = useConnection();
   const router = useRouter();
   const [mounted, setMounted] = React.useState(false);
+  const [balance, setBalance] = React.useState<number | null>(null);
+  const [balanceLoading, setBalanceLoading] = React.useState(false);
+
+  const IDRX_MINT = process.env.NEXT_PUBLIC_IDRX_MINT!;
+  const IDRX_DECIMALS = 6;
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!publicKey || !connected) {
+      setBalance(null);
+      return;
+    }
+
+    const fetchBalance = async () => {
+      setBalanceLoading(true);
+      try {
+        const mint = new PublicKey(IDRX_MINT);
+        const ata = await getAssociatedTokenAddress(mint, publicKey);
+        
+        try {
+          const account = await connection.getTokenAccountBalance(ata);
+          const val = parseInt(account.value.amount) / Math.pow(10, IDRX_DECIMALS);
+          setBalance(val);
+        } catch {
+          // Token account doesn't exist
+          setBalance(0);
+        }
+      } catch (err) {
+        console.error('Balance fetch error:', err);
+      } finally {
+        setBalanceLoading(false);
+      }
+    };
+
+    fetchBalance();
+    const interval = setInterval(fetchBalance, 30000); // 30s refresh
+    return () => clearInterval(interval);
+  }, [publicKey, connected, connection, IDRX_MINT]);
 
   // Redirect to landing page if wallet is disconnected
   useEffect(() => {
@@ -25,6 +66,12 @@ export default function OpsLayout({
       router.push('/');
     }
   }, [mounted, connected, disconnecting, router]);
+
+  const formatIdrx = (val: number) => {
+    if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(2)}M`;
+    if (val >= 1_000) return `${(val / 1_000).toFixed(1)}K`;
+    return val.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  };
 
   return (
     <div className="flex min-h-screen bg-[#E8E4DE] font-sans selection:bg-[#FF4D00] selection:text-white">
@@ -64,7 +111,31 @@ export default function OpsLayout({
               </div>
             </div>
             
-            <WalletMultiButton className="!bg-[#0A0A0A] !text-white !h-12 !px-8 !text-sm !font-bold !rounded-full hover:!bg-black/80 !transition-all !border-none !shadow-xl !shadow-black/10" />
+            {connected && (
+              <div className="flex items-center gap-2 bg-white border border-[#D4D0CA] h-12 px-5 rounded-full shadow-sm">
+                <div className="h-6 w-6 bg-[#FF4D00]/10 rounded-full flex items-center justify-center">
+                  <Coins className="h-3.5 w-3.5 text-[#FF4D00]" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[8px] font-black text-[#6B6B6B] uppercase tracking-wider leading-none mb-0.5">
+                    Agency Balance
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {balanceLoading && balance === null ? (
+                      <Loader2 className="h-3 w-3 animate-spin text-[#0A0A0A]" />
+                    ) : (
+                      <span className="text-sm font-black text-[#0A0A0A]">
+                        {formatIdrx(balance ?? 0)} <span className="text-[10px] text-[#6B6B6B]">IDRX</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {mounted && (
+              <WalletMultiButton className="!bg-[#0A0A0A] !text-white !h-12 !px-8 !text-sm !font-bold !rounded-full hover:!bg-black/80 !transition-all !border-none !shadow-xl !shadow-black/10" />
+            )}
           </div>
         </header>
         

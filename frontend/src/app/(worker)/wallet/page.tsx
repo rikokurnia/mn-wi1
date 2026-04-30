@@ -1,30 +1,47 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWorkerWallet } from '@/components/worker/WorkerWalletContext';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { getAssociatedTokenAddress } from '@solana/spl-token';
 import { 
   TrendingUp, 
   ArrowDownLeft, 
-  ArrowUpRight,
   Wallet as WalletIcon,
   Zap,
   ExternalLink,
-  Loader2
+  Loader2,
+  Camera,
+  Clock,
+  CheckCircle2
 } from 'lucide-react';
 
 const IDRX_DECIMALS = 6;
 const IDRX_MINT = process.env.NEXT_PUBLIC_IDRX_MINT!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+
+interface HistoryJob {
+  id: string;
+  title: string;
+  payout_idrx: number;
+  status: string;
+  proof_submitted_at: string | null;
+  proof_photo_url: string | null;
+  escrow_tx: string | null;
+  created_at: string;
+}
 
 export default function WalletPage() {
-  const { publicKey, connected } = useWallet();
+  const { publicKey, connected, logout } = useWorkerWallet();
   const [balance, setBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState<HistoryJob[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   useEffect(() => {
     if (!publicKey || !connected) {
       setBalance(null);
+      setHistory([]);
       return;
     }
 
@@ -41,7 +58,6 @@ export default function WalletPage() {
           const idrx = parseInt(raw) / Math.pow(10, IDRX_DECIMALS);
           setBalance(idrx);
         } catch {
-          // ATA doesn't exist yet — balance is 0
           setBalance(0);
         }
       } catch {
@@ -51,8 +67,22 @@ export default function WalletPage() {
       }
     };
 
+    const loadHistory = async () => {
+      setHistoryLoading(true);
+      try {
+        const res = await fetch(`/api/workers/${publicKey.toBase58()}/history`);
+        const data = await res.json();
+        setHistory(data.jobs || []);
+      } catch {
+        setHistory([]);
+      } finally {
+        setHistoryLoading(false);
+      }
+    };
+
     loadBalance();
-    const interval = setInterval(loadBalance, 15000); // refresh every 15s
+    loadHistory();
+    const interval = setInterval(loadBalance, 15000);
     return () => clearInterval(interval);
   }, [publicKey, connected]);
 
@@ -60,6 +90,19 @@ export default function WalletPage() {
     if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(2)}M`;
     if (val >= 1_000) return `${(val / 1_000).toFixed(1)}K`;
     return val.toFixed(IDRX_DECIMALS > 0 ? 2 : 0);
+  };
+
+  // Compute this month's earnings
+  const now = new Date();
+  const thisMonthEarnings = history
+    .filter(j => j.status === 'completed' && j.proof_submitted_at && new Date(j.proof_submitted_at).getMonth() === now.getMonth() && new Date(j.proof_submitted_at).getFullYear() === now.getFullYear())
+    .reduce((sum, j) => sum + (j.payout_idrx || 0), 0);
+
+  const completedCount = history.filter(j => j.status === 'completed').length;
+
+  const getProofImgUrl = (job: HistoryJob) => {
+    if (job.proof_photo_url) return job.proof_photo_url;
+    return `${supabaseUrl}/storage/v1/object/public/proofs/job_proof_${job.id}.jpg`;
   };
 
   if (!connected) {
@@ -75,7 +118,7 @@ export default function WalletPage() {
   }
 
   return (
-    <div className="p-8 space-y-10 max-w-md mx-auto">
+    <div className="p-8 space-y-10 max-w-md mx-auto pb-32">
       {/* Header */}
       <div className="flex items-center justify-between pt-4">
         <div>
@@ -86,9 +129,9 @@ export default function WalletPage() {
             MANDORA IDRX TREASURY
           </p>
         </div>
-        <div className="h-12 w-12 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center">
+        <button onClick={logout} className="h-12 w-12 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center hover:bg-white/10 transition-colors">
           <WalletIcon className="h-6 w-6 text-[#FF4D00]" />
-        </div>
+        </button>
       </div>
 
       {/* Balance Card */}
@@ -137,34 +180,86 @@ export default function WalletPage() {
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-[#1A1A1A] p-6 rounded-[32px] border border-white/5">
           <p className="text-[9px] font-black text-[#6B6B6B] uppercase tracking-widest mb-1">THIS MONTH</p>
-          <p className="text-xl font-black text-white uppercase tracking-tighter">Rp 0</p>
+          <p className="text-xl font-black text-white uppercase tracking-tighter">
+            Rp {historyLoading ? '...' : formatIdrx(thisMonthEarnings)}
+          </p>
         </div>
         <div className="bg-[#1A1A1A] p-6 rounded-[32px] border border-white/5">
-          <p className="text-[9px] font-black text-[#6B6B6B] uppercase tracking-widest mb-1">GAS SAVED</p>
-          <p className="text-xl font-black text-[#FF4D00] uppercase tracking-tighter">0 SOL</p>
+          <p className="text-[9px] font-black text-[#6B6B6B] uppercase tracking-widest mb-1">COMPLETED</p>
+          <p className="text-xl font-black text-[#FF4D00] uppercase tracking-tighter">
+            {historyLoading ? '...' : `${completedCount} Jobs`}
+          </p>
         </div>
       </div>
 
-      {/* How it works */}
-      <div className="bg-[#1A1A1A] p-6 rounded-[32px] border border-white/5">
-        <h3 className="text-xs font-black text-white uppercase tracking-widest mb-4">How Payment Works</h3>
-        <div className="space-y-3">
-          {[
-            { icon: Zap, label: 'Complete a task', desc: 'Submit GPS + photo proof' },
-            { icon: TrendingUp, label: 'Auto-release', desc: 'IDRX sent to your wallet instantly' },
-            { icon: ArrowDownLeft, label: 'Track earnings', desc: 'Balance updates in real-time' },
-          ].map(({ icon: Icon, label, desc }) => (
-            <div key={label} className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-xl bg-[#FF4D00]/10 flex items-center justify-center flex-shrink-0">
-                <Icon className="h-4 w-4 text-[#FF4D00]" />
+      {/* Transaction History */}
+      <div className="space-y-4">
+        <h3 className="text-xs font-black text-white uppercase tracking-[0.2em]">Transaction History</h3>
+        
+        {historyLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-5 w-5 text-[#FF4D00] animate-spin" />
+          </div>
+        ) : history.length === 0 ? (
+          <div className="bg-[#1A1A1A] p-8 rounded-[32px] border border-white/5 text-center">
+            <p className="text-sm font-bold text-[#6B6B6B]">No jobs yet. Accept a task from Explore to get started!</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {history.map((job) => (
+              <div key={job.id} className="bg-[#1A1A1A] p-4 rounded-[24px] border border-white/5 flex items-center gap-4 group hover:border-white/10 transition-all">
+                {/* Photo Thumbnail */}
+                <div className="h-14 w-14 rounded-2xl bg-[#0A0A0A] overflow-hidden flex-shrink-0 border border-white/5">
+                  <img 
+                    src={getProofImgUrl(job)} 
+                    alt="" 
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-black text-white uppercase tracking-tight truncate">{job.title}</span>
+                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase flex-shrink-0 ${
+                      job.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                      job.status === 'pending_review' ? 'bg-[#FF4D00]/20 text-[#FF4D00]' :
+                      job.status === 'cancelled' ? 'bg-red-500/20 text-red-400' :
+                      'bg-white/10 text-[#6B6B6B]'
+                    }`}>
+                      {job.status === 'pending_review' ? 'review' : job.status}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-black text-[#FF4D00]">
+                      {job.status === 'completed' ? '+' : ''}Rp {job.payout_idrx?.toLocaleString('id-ID')}
+                    </span>
+                    <span className="text-[9px] font-bold text-[#6B6B6B]">
+                      {job.proof_submitted_at 
+                        ? new Date(job.proof_submitted_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+                        : new Date(job.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Tx Link */}
+                {job.escrow_tx && job.escrow_tx !== 'simulation-bypassed' && (
+                  <a
+                    href={`https://solscan.io/tx/${job.escrow_tx}?cluster=devnet`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="h-8 w-8 bg-white/5 rounded-lg flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-colors"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5 text-[#6B6B6B]" />
+                  </a>
+                )}
               </div>
-              <div>
-                <p className="text-xs font-black text-white">{label}</p>
-                <p className="text-[10px] font-bold text-[#6B6B6B]">{desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

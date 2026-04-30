@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('jobs')
-    .select('*, categories(name, icon)')
+    .select('*, categories(name, icon), workers(wallet_address)')
     .eq('status', status)
     .order('created_at', { ascending: false })
 

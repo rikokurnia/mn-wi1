@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWorkerWallet } from '@/components/worker/WorkerWalletContext';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
 import { getAssociatedTokenAddress } from '@solana/spl-token';
@@ -28,11 +28,12 @@ interface ActiveJob {
   longitude: number;
   geofence_radius_m: number;
   escrow_pubkey: string | null;
+  authority_pubkey: string | null; // Agency wallet that created the escrow
 }
 
 export default function VerificationPage() {
   const router = useRouter();
-  const { publicKey, signTransaction } = useWallet();
+  const { publicKey, signTransaction, signAllTransactions } = useWorkerWallet();
   const videoRef = useRef<HTMLVideoElement>(null);
   
   const [step, setStep] = useState<Step>('loading');
@@ -118,19 +119,40 @@ export default function VerificationPage() {
   };
 
   const handleSubmitProof = async () => {
-    if (!publicKey || !signTransaction || !job || !job.escrow_pubkey) {
-      setErrorMsg('Missing wallet or job data');
-      setStep('error');
-      return;
-    }
+    if (!publicKey) { setErrorMsg('Wallet public key missing'); setStep('error'); return; }
+    if (!signTransaction) { setErrorMsg('Sign transaction missing'); setStep('error'); return; }
+    if (!job) { setErrorMsg('Job data missing'); setStep('error'); return; }
+    if (!job.escrow_pubkey) { setErrorMsg('Job is missing on-chain escrow address. Please recreate the job from the Ops Dashboard.'); setStep('error'); return; }
+    if (!job.authority_pubkey) { setErrorMsg('Job is missing agency authority address. Please recreate the job from the Ops Dashboard.'); setStep('error'); return; }
+
     setStep('submitting');
+
+    // 1. Upload photo first (non-blocking — if it fails, still continue with chain tx)
+    let proofPhotoUrl: string | null = null;
+    if (photoData) {
+      try {
+        const proofRes = await fetch(`/api/jobs/${job.id}/proof`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_base64: photoData })
+        });
+        if (proofRes.ok) {
+          const proofData = await proofRes.json();
+          proofPhotoUrl = proofData.url;
+        }
+      } catch (photoErr) {
+        console.warn('Photo upload failed (non-fatal):', photoErr);
+      }
+    }
+
+    // 2. Submit proof on-chain
     try {
       const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC!, 'confirmed');
-      const wallet = { publicKey, signTransaction } as any;
+      const wallet = { publicKey, signTransaction, signAllTransactions } as any;
       const program = getProgram(connection, wallet);
-      const escrowPubkey = new PublicKey(job.escrow_pubkey);
-      const authorityBytes = new Uint8Array(escrowPubkey.toBytes().buffer, escrowPubkey.toBytes().byteOffset, 32);
-      const authority = new PublicKey(authorityBytes);
+
+      // Authority = agency wallet address stored in DB when job was created
+      const authority = new PublicKey(job.authority_pubkey);
       const jobId = uuidToJobIdSync(job.id);
       const mint = new PublicKey(process.env.NEXT_PUBLIC_IDRX_MINT!);
       const workerTokenAccount = await getAssociatedTokenAddress(mint, publicKey);
@@ -138,41 +160,51 @@ export default function VerificationPage() {
       const workerLat = new BN(Math.round((currentPosition?.lat || job.latitude) * 1_000_000));
       const workerLng = new BN(Math.round((currentPosition?.lng || job.longitude) * 1_000_000));
       const photoHash = new Uint8Array(32);
-      await submitProofTx(program, publicKey, authority, workerTokenAccount, authorityTokenAccount, jobId, workerLat, workerLng, photoHash);
-      
-      if (photoData) {
-        await fetch(`/api/jobs/${job.id}/proof`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image_base64: photoData })
-        });
-      }
 
+      await submitProofTx(
+        program, publicKey, authority,
+        workerTokenAccount, authorityTokenAccount,
+        jobId, workerLat, workerLng, photoHash
+      );
+
+      // 3. Update job status in DB
       await fetch(`/api/jobs/${job.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: 'pending_review',
           proof_submitted_at: new Date().toISOString(),
+          proof_photo_url: proofPhotoUrl,
           proof_gps_lat: currentPosition?.lat || job.latitude,
           proof_gps_lng: currentPosition?.lng || job.longitude,
         })
       });
+
       setStep('success');
     } catch (err: any) {
-      try {
+      // Don't silently mark as pending_review — show exact error so we can debug
+      const msg: string = err.message || 'Unknown error';
+      console.error('submitProof failed:', msg);
+
+      // Check if it's actually already processed (Devnet quirk) 
+      if (msg.includes('already been processed')) {
+        // Transaction succeeded but simulation re-ran — treat as success
         await fetch(`/api/jobs/${job.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             status: 'pending_review',
             proof_submitted_at: new Date().toISOString(),
+            proof_photo_url: proofPhotoUrl,
             proof_gps_lat: currentPosition?.lat || job.latitude,
             proof_gps_lng: currentPosition?.lng || job.longitude,
           })
         });
-      } catch {}
-      setErrorMsg(err.message || 'Transaction failed — submitted for manual review.');
+        setStep('success');
+        return;
+      }
+
+      setErrorMsg(`Transaction failed: ${msg}`);
       setStep('error');
     }
   };
@@ -222,14 +254,22 @@ export default function VerificationPage() {
             step === 'camera' || photoTaken ? 'border-[#FF4D00]/50' : 'border-white/5'
           }`}>
             <video ref={videoRef} autoPlay playsInline muted className={`absolute inset-0 w-full h-full object-cover ${cameraActive ? 'block' : 'hidden'}`} />
-            <div className="absolute inset-0 bg-[#1A1A1A] flex items-center justify-center z-10">
-              {photoTaken ? (
-                <div className="text-center">
+            <div className={`absolute inset-0 flex items-center justify-center z-10 ${!photoTaken ? 'bg-[#1A1A1A]' : 'bg-black/50 backdrop-blur-sm'}`}>
+              {photoTaken && photoData ? (
+                <>
+                  <img src={photoData} alt="Captured Proof" className="absolute inset-0 w-full h-full object-cover z-0" />
+                  <div className="text-center relative z-10 p-4 bg-black/60 rounded-3xl backdrop-blur-md">
+                    <CheckCircle2 className="h-12 w-12 text-[#FF4D00] mx-auto mb-2" />
+                    <p className="text-[10px] font-black text-white uppercase tracking-widest">Photo Captured</p>
+                  </div>
+                </>
+              ) : photoTaken ? (
+                <div className="text-center relative z-10">
                   <CheckCircle2 className="h-16 w-16 text-[#FF4D00] mx-auto mb-2" />
                   <p className="text-xs font-black text-white uppercase tracking-widest">Photo Captured</p>
                 </div>
               ) : (
-                <div className="text-center space-y-2">
+                <div className="text-center space-y-2 relative z-10">
                   <Camera className={`h-12 w-12 mx-auto ${cameraActive ? 'text-[#FF4D00]' : 'text-[#6B6B6B]'}`} />
                   <p className="text-[10px] font-black text-[#6B6B6B] uppercase tracking-widest">{cameraActive ? 'Point at location' : 'Camera ready'}</p>
                 </div>

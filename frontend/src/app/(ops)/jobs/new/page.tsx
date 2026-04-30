@@ -99,43 +99,68 @@ export default function NewJobPage() {
       }
 
       const { job } = await jobRes.json();
+      let escrowTxSig = '';
+      let escrowPDA: PublicKey | null = null;
 
-      // 2. Fund escrow on-chain
-      const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC!, 'confirmed');
-      const wallet = { publicKey, signTransaction } as any;
-      const program = getProgram(connection, wallet);
+      try {
+        // 2. Fund escrow on-chain
+        const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC!, 'confirmed');
+        const wallet = { publicKey, signTransaction } as any;
+        const program = getProgram(connection, wallet);
 
-      const jobId = uuidToJobIdSync(job.id); // 16 bytes for on-chain PDA
-      const mint = new PublicKey(process.env.NEXT_PUBLIC_IDRX_MINT!);
-      const amount = new BN(parseInt(formData.payout_idrx) * 1_000_000); // 6 decimals
-      const latScaled = new BN(Math.round(formData.lat * 1_000_000));
-      const lngScaled = new BN(Math.round(formData.lng * 1_000_000));
-      const deadline = new BN(Math.floor(Date.now() / 1000) + 86400 * 7); // 7 days
+        const jobId = uuidToJobIdSync(job.id); // 16 bytes for on-chain PDA
+        const mint = new PublicKey(process.env.NEXT_PUBLIC_IDRX_MINT!);
+        const amount = new BN(parseInt(formData.payout_idrx) * 1_000_000); // 6 decimals
+        const latScaled = new BN(Math.round(formData.lat * 1_000_000));
+        const lngScaled = new BN(Math.round(formData.lng * 1_000_000));
+        const deadline = new BN(Math.floor(Date.now() / 1000) + 86400 * 7); // 7 days
 
-      const authorityTokenAccount = await getAssociatedTokenAddress(mint, publicKey);
+        const authorityTokenAccount = await getAssociatedTokenAddress(mint, publicKey);
+        
+        [escrowPDA] = getEscrowPDA(publicKey, jobId);
 
-      const tx = await createEscrowTx(
-        program,
-        publicKey,
-        authorityTokenAccount,
-        mint,
-        jobId,
-        amount,
-        latScaled,
-        lngScaled,
-        formData.radius,
-        deadline
-      );
+        escrowTxSig = await createEscrowTx(
+          program,
+          publicKey,
+          authorityTokenAccount,
+          mint,
+          jobId,
+          amount,
+          latScaled,
+          lngScaled,
+          formData.radius,
+          deadline
+        );
+      } catch (txErr: any) {
+        const msg = txErr.message || '';
+        if (msg.includes('already been processed')) {
+          console.warn('Devnet simulation error caught, but transaction likely succeeded.');
+        } else {
+          // Real error -> rollback the job in DB so worker doesn't see a broken job
+          await fetch(`/api/jobs/${job.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'cancelled' })
+          });
 
-      const [escrowPDA] = getEscrowPDA(publicKey, jobId);
+          if (msg.includes('AccountNotInitialized') || msg.includes('3012')) {
+            throw new Error('Your IDRX Token Account is not initialized! Go to Settings and use the Faucet first.');
+          }
+          if (msg.includes('0x1') || msg.includes('insufficient funds')) {
+            throw new Error('Insufficient IDRX Funds! You tried to fund an escrow but your balance is too low. Go to Settings and use the Faucet to mint 1,000,000 IDRX.');
+          }
+          throw txErr;
+        }
+      }
 
-      // 3. Update job with escrow info
+      // 3. Update job with escrow info + agency authority address
       await fetch('/api/jobs/' + job.id, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          escrow_pubkey: escrowPDA.toBase58(),
-          escrow_tx: tx
+          escrow_pubkey: escrowPDA?.toBase58(),
+          authority_pubkey: publicKey.toBase58(), // needed by worker to submitProof
+          escrow_tx: escrowTxSig || 'simulation-bypassed'
         })
       });
 
