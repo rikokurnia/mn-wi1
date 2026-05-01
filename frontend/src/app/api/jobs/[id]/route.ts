@@ -1,14 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase/client'
-import { createClient } from '@supabase/supabase-js'
-
-// Service client for admin operations (bypasses RLS)
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-}
+import { getSupabaseAdmin } from '@/lib/supabase/server'
 
 export async function PATCH(
   request: NextRequest,
@@ -17,7 +8,7 @@ export async function PATCH(
   const { id } = await params
   const body = await request.json()
 
-  const sb = getServiceClient()
+  const sb = getSupabaseAdmin()
   const { data, error } = await sb
     .from('jobs')
     .update(body)
@@ -38,7 +29,7 @@ export async function GET(
 ) {
   const { id } = await params
 
-  const sb = getServiceClient()
+  const sb = getSupabaseAdmin()
   const { data, error } = await sb
     .from('jobs')
     .select('*, categories(name, icon)')

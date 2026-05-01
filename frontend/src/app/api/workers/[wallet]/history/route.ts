@@ -1,12 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 
 /**
  * GET /api/workers/[wallet]/history
@@ -17,7 +10,8 @@ export async function GET(
   { params }: { params: Promise<{ wallet: string }> }
 ) {
   const { wallet } = await params;
-  const sb = getServiceClient();
+  const sb = getSupabaseAdmin();
+
 
   // Find worker by wallet
   const { data: worker, error: workerErr } = await sb

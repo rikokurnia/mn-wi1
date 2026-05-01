@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getSupabaseAdmin } from '@/lib/supabase/server'
 
 export async function GET(
   request: NextRequest,
@@ -7,10 +7,7 @@ export async function GET(
 ) {
   const { wallet } = await params
 
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  const sb = getSupabaseAdmin()
 
   // Find the worker by wallet address
   const { data: worker, error: workerErr } = await sb

@@ -1,13 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-// Service client for admin operations (bypasses RLS)
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 
 export async function POST(
   request: NextRequest,
@@ -22,7 +14,7 @@ export async function POST(
       return NextResponse.json({ error: 'image_base64 is required' }, { status: 400 });
     }
 
-    const sb = getServiceClient();
+    const sb = getSupabaseAdmin();
 
     // The base64 string looks like: "data:image/jpeg;base64,/9j/4AAQSkZJRg..."
     const base64Data = image_base64.replace(/^data:image\/\w+;base64,/, '');

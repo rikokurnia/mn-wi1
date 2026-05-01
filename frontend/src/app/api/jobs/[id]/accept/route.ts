@@ -1,15 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import bs58 from 'bs58';
 import { getProgram, getEscrowPDA, uuidToJobIdSync } from '@/lib/solana/client';
-
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
 
 /**
  * POST /api/jobs/[id]/accept
@@ -31,7 +24,7 @@ export async function POST(
     return NextResponse.json({ error: 'worker_wallet is required' }, { status: 400 });
   }
 
-  const sb = getServiceClient();
+  const sb = getSupabaseAdmin();
 
   // 1. Upsert worker record
   const { data: worker, error: workerErr } = await sb
