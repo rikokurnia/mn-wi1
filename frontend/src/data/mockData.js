@@ -25,21 +25,21 @@ export const useCaseTabs = [
     label: 'Delivery Riders',
     description: 'Motorcycle couriers and last-mile delivery riders complete hundreds of drops daily. With Mandora, every delivery is GPS-verified and payment settles instantly to their phone — no waiting 3-5 days, no bank account needed. Riders stay motivated, agencies cut admin overhead by 90%.',
     tagline: 'GPS-verified deliveries with instant IDRX settlement to rider wallets.',
-    image: 'https://images.unsplash.com/photo-1695654396488-612369cef115?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzV8MHwxfHNlYXJjaHwxfHxJbmRvbmVzaWFuJTIwZGVsaXZlcnklMjByaWRlcnxlbnwwfHx8fDE3NzY5NzY4MzF8MA&ixlib=rb-4.1.0&q=85',
+    image: '/assets_images/delivery.png',
   },
   {
     id: 'cleaning',
     label: 'Cleaning Services',
     description: 'Home and office cleaning crews verify task completion through geofenced check-ins and timestamped photo proofs. Mandora eliminates fraudulent reports and ensures workers get paid the moment the job is done — building trust on both sides.',
     tagline: 'Photo-hash proofs eliminate fraud and settle cleaning crew payments instantly.',
-    image: 'https://images.pexels.com/photos/4226270/pexels-photo-4226270.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940',
+    image: '/assets_images/cleaning.png',
   },
   {
     id: 'field',
     label: 'Field Services',
     description: 'Agricultural inspectors, maintenance crews, and surveyors working in remote areas get verifiable proof-of-presence on Solana. Agencies can trust that field workers were on-site, and workers receive instant payment without needing a traditional bank account.',
     tagline: 'Proof-of-presence for remote field workers with bankless instant payouts.',
-    image: 'https://images.pexels.com/photos/4199524/pexels-photo-4199524.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940',
+    image: '/assets_images/field.png',
   },
 ];
 
@@ -78,7 +78,7 @@ export const newsItems = [
   },
   {
     id: 5,
-    image: 'https://images.unsplash.com/photo-1695654396488-612369cef115?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzV8MHwxfHNlYXJjaHwxfHxJbmRvbmVzaWFuJTIwZGVsaXZlcnklMjByaWRlcnxlbnwwfHx8fDE3NzY5NzY4MzF8MA&ixlib=rb-4.1.0&q=85',
+    image: '/assets_images/foto1.jpeg',
     category: 'Milestone',
     title: 'First 10,000 Workers Onboarded: Mandora Expands Beyond Greater Jakarta',
     date: 'May 5, 2025',
