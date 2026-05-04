@@ -20,19 +20,17 @@ export async function GET(
     return NextResponse.json({ job: null })
   }
 
-  // Find active job for this worker (assigned, in_progress, pending_review)
-  const { data: job, error: jobErr } = await sb
+  // Find active jobs for this worker (assigned, in_progress, pending_review)
+  const { data: jobs, error: jobErr } = await sb
     .from('jobs')
     .select('*, categories(name, icon)')
     .eq('worker_id', worker.id)
     .in('status', ['assigned', 'in_progress', 'pending_review'])
     .order('assigned_at', { ascending: false })
-    .limit(1)
-    .single()
 
   if (jobErr) {
-    return NextResponse.json({ job: null })
+    return NextResponse.json({ jobs: [] })
   }
 
-  return NextResponse.json({ job })
+  return NextResponse.json({ jobs: jobs || [] })
 }

@@ -31,8 +31,12 @@ interface ActiveJob {
   authority_pubkey: string | null; // Agency wallet that created the escrow
 }
 
+import { useSearchParams } from 'next/navigation';
+
 export default function VerificationPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const jobId = searchParams.get('jobId');
   const { publicKey, signTransaction, signAllTransactions } = useWorkerWallet();
   const videoRef = useRef<HTMLVideoElement>(null);
   
@@ -48,12 +52,17 @@ export default function VerificationPage() {
 
   useEffect(() => {
     if (!publicKey) return;
+    if (!jobId) {
+      setErrorMsg('No job ID provided.');
+      setStep('error');
+      return;
+    }
     const loadJob = async () => {
       try {
-        const res = await fetch(`/api/workers/${publicKey.toBase58()}/active-job`);
+        const res = await fetch(`/api/jobs/${jobId}`);
         const data = await res.json();
         if (!data.job) {
-          setErrorMsg('No active job found. Please accept a job first.');
+          setErrorMsg('Job not found.');
           setStep('error');
           return;
         }
@@ -70,7 +79,8 @@ export default function VerificationPage() {
       }
     };
     loadJob();
-  }, [publicKey]);
+  }, [publicKey, jobId]);
+
 
   useEffect(() => {
     if (step !== 'gps' || !job) return;
@@ -254,10 +264,13 @@ export default function VerificationPage() {
             step === 'camera' || photoTaken ? 'border-[#FF4D00]/50' : 'border-white/5'
           }`}>
             <video ref={videoRef} autoPlay playsInline muted className={`absolute inset-0 w-full h-full object-cover ${cameraActive ? 'block' : 'hidden'}`} />
-            <div className={`absolute inset-0 flex items-center justify-center z-10 ${!photoTaken ? 'bg-[#1A1A1A]' : 'bg-black/50 backdrop-blur-sm'}`}>
+            <div className={`absolute inset-0 flex items-center justify-center z-10 ${
+              cameraActive ? 'bg-transparent pointer-events-none' : 
+              !photoTaken ? 'bg-[#1A1A1A]' : 'bg-black/50 backdrop-blur-sm'
+            }`}>
               {photoTaken && photoData ? (
                 <>
-                  <img src={photoData} alt="Captured Proof" className="absolute inset-0 w-full h-full object-cover z-0" />
+                  <img src={photoData} alt="Captured Proof" className="absolute inset-0 w-full h-full object-cover z-0 pointer-events-auto" />
                   <div className="text-center relative z-10 p-4 bg-black/60 rounded-3xl backdrop-blur-md">
                     <CheckCircle2 className="h-12 w-12 text-[#FF4D00] mx-auto mb-2" />
                     <p className="text-[10px] font-black text-white uppercase tracking-widest">Photo Captured</p>
@@ -269,9 +282,19 @@ export default function VerificationPage() {
                   <p className="text-xs font-black text-white uppercase tracking-widest">Photo Captured</p>
                 </div>
               ) : (
-                <div className="text-center space-y-2 relative z-10">
-                  <Camera className={`h-12 w-12 mx-auto ${cameraActive ? 'text-[#FF4D00]' : 'text-[#6B6B6B]'}`} />
-                  <p className="text-[10px] font-black text-[#6B6B6B] uppercase tracking-widest">{cameraActive ? 'Point at location' : 'Camera ready'}</p>
+                <div className="text-center relative z-10 w-full h-full flex items-center justify-center">
+                  {!cameraActive ? (
+                    <div className="space-y-2">
+                      <Camera className="h-12 w-12 mx-auto text-[#6B6B6B]" />
+                      <p className="text-[10px] font-black text-[#6B6B6B] uppercase tracking-widest">Camera ready</p>
+                    </div>
+                  ) : (
+                    <div className="absolute bottom-8 w-full flex justify-center">
+                      <p className="text-[10px] font-black text-white bg-black/50 px-4 py-2 rounded-full backdrop-blur-sm uppercase tracking-widest">
+                        Point at location
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
