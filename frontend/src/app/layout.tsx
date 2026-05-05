@@ -16,6 +16,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Mandora - Trust Protocol",
   description: "Instant pay for every worker.",
+  icons: {
+    icon: "/assets_images/logo.png",
+  },
 };
 
 export default function RootLayout({
