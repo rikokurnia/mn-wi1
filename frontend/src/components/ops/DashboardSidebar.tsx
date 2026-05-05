@@ -30,13 +30,11 @@ export default function DashboardSidebar() {
   const pathname = usePathname();
 
   return (
-    <div className="w-72 bg-[#F5F2ED] border-r border-[#D4D0CA] flex flex-col h-screen sticky top-0 z-20">
+    <div className="hidden md:flex w-72 bg-[#F5F2ED] border-r border-[#D4D0CA] flex-col h-screen sticky top-0 z-20">
       <div className="p-8">
         <Link href="/" className="flex items-center gap-3">
-          <div className="h-10 w-10 bg-[#FF4D00] rounded-xl flex items-center justify-center shadow-lg shadow-orange-200">
-            <span className="text-white font-black text-lg">M</span>
-          </div>
-          <span className="text-2xl font-black text-[#0A0A0A] tracking-tighter">Mandora</span>
+          <img src="/assets_images/logo.png" alt="Mandora Logo" className="h-10 w-auto" />
+          <span className="text-2xl font-black text-[#0A0A0A] tracking-tighter ml-1">Mandora</span>
         </Link>
       </div>
 

@@ -36,9 +36,7 @@ export default function LoginPage() {
 
       <div className="max-w-md w-full bg-white border-2 border-[#D4D0CA] rounded-[40px] shadow-2xl p-12 text-center relative z-10 transition-all hover:border-[#FF4D00]">
         <div className="mb-10">
-          <div className="h-16 w-16 bg-[#FF4D00] rounded-2xl mx-auto mb-6 flex items-center justify-center shadow-lg shadow-orange-200">
-            <span className="text-white font-black text-2xl">M</span>
-          </div>
+          <img src="/assets_images/logo.png" alt="Mandora Logo" className="h-16 w-auto mx-auto mb-6" />
           <h1 className="text-4xl font-black text-[#0A0A0A] tracking-tighter uppercase mb-4">
             Authorize<br />Access
           </h1>

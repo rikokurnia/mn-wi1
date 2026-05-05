@@ -43,9 +43,7 @@ export default function RoleSelectionPage() {
 
       <div className="max-w-4xl w-full relative z-10 space-y-12">
         <div className="text-center space-y-4">
-          <div className="h-16 w-16 bg-[#FF4D00] rounded-2xl mx-auto flex items-center justify-center shadow-lg shadow-orange-200">
-            <span className="text-white font-black text-2xl">M</span>
-          </div>
+          <img src="/assets_images/logo.png" alt="Mandora Logo" className="h-16 w-auto mx-auto mb-4" />
           <h1 className="text-5xl font-black text-[#0A0A0A] tracking-tighter uppercase leading-none">
             Choose Your<br />Network Role
           </h1>

@@ -2,14 +2,7 @@ import React from 'react';
 import { navLinks } from '../../data/mockData';
 
 const MandoraLogo = () => (
-  <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect width="32" height="32" rx="8" fill="#FF4D00" />
-    <path d="M8 22V12L16 8L24 12V22L16 26L8 22Z" stroke="white" strokeWidth="2" fill="none" />
-    <circle cx="16" cy="16" r="3" fill="white" />
-    <line x1="16" y1="13" x2="16" y2="8" stroke="white" strokeWidth="1.5" />
-    <line x1="19" y1="16" x2="24" y2="14" stroke="white" strokeWidth="1.5" />
-    <line x1="13" y1="16" x2="8" y2="14" stroke="white" strokeWidth="1.5" />
-  </svg>
+  <img src="/assets_images/logo.png" alt="Mandora Logo" className="h-8 w-auto" />
 );
 
 const DiscordIcon = () => (

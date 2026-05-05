@@ -1,13 +1,28 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import DashboardSidebar from '@/components/ops/DashboardSidebar';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { getAssociatedTokenAddress } from '@solana/spl-token';
 import { PublicKey } from '@solana/web3.js';
-import { Coins, Loader2 } from 'lucide-react';
+import { Coins, Loader2, LayoutDashboard, Briefcase, CheckCircle2, Wallet, PlusCircle } from 'lucide-react';
+import Link from 'next/link';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+const navItems = [
+  { name: 'Dash', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Jobs', href: '/jobs', icon: Briefcase },
+  { name: 'Post', href: '/jobs/new', icon: PlusCircle },
+  { name: 'Proofs', href: '/proofs', icon: CheckCircle2 },
+  { name: 'Treasury', href: '/treasury', icon: Wallet },
+];
 
 export default function OpsLayout({
   children,
@@ -17,6 +32,7 @@ export default function OpsLayout({
   const { publicKey, connected, disconnecting } = useWallet();
   const { connection } = useConnection();
   const router = useRouter();
+  const pathname = usePathname();
   const [mounted, setMounted] = React.useState(false);
   const [balance, setBalance] = React.useState<number | null>(null);
   const [balanceLoading, setBalanceLoading] = React.useState(false);
@@ -87,20 +103,23 @@ export default function OpsLayout({
       
       <DashboardSidebar />
       
-      <div className="flex-1 flex flex-col relative z-10">
-        <header className="h-24 border-b border-[#D4D0CA] bg-[#E8E4DE]/80 backdrop-blur-xl px-10 flex items-center justify-between sticky top-0 z-20">
+      <div className="flex-1 flex flex-col relative z-10 w-full min-w-0 pb-20 md:pb-0">
+        <header className="h-16 md:h-24 border-b border-[#D4D0CA] bg-[#E8E4DE]/80 backdrop-blur-xl px-4 md:px-10 flex items-center justify-between sticky top-0 z-20">
           <div>
-            <h2 className="text-[10px] font-black text-[#6B6B6B] uppercase tracking-[0.3em]">
+            <h2 className="text-[10px] font-black text-[#6B6B6B] uppercase tracking-[0.3em] hidden sm:block">
               Mandora Ops Console
             </h2>
-            <div className="flex items-center gap-2 mt-1">
+            <h2 className="text-[10px] font-black text-[#6B6B6B] uppercase tracking-[0.3em] sm:hidden">
+              Ops
+            </h2>
+            <div className="flex items-center gap-2 mt-0.5 md:mt-1">
               <div className="h-2 w-2 bg-[#FF4D00] rounded-full animate-pulse" />
-              <span className="text-xs font-bold text-[#0A0A0A]">Solana Devnet Active</span>
+              <span className="text-[10px] md:text-xs font-bold text-[#0A0A0A]">Solana Devnet</span>
             </div>
           </div>
           
-          <div className="flex items-center gap-6">
-            <div className="flex items-center -space-x-2">
+          <div className="flex items-center gap-2 md:gap-6">
+            <div className="hidden md:flex items-center -space-x-2">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="h-8 w-8 rounded-full border-2 border-[#E8E4DE] bg-[#D4D0CA] overflow-hidden">
                   <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${i}`} alt="avatar" />
@@ -112,20 +131,20 @@ export default function OpsLayout({
             </div>
             
             {connected && (
-              <div className="flex items-center gap-2 bg-white border border-[#D4D0CA] h-12 px-5 rounded-full shadow-sm">
-                <div className="h-6 w-6 bg-[#FF4D00]/10 rounded-full flex items-center justify-center">
-                  <Coins className="h-3.5 w-3.5 text-[#FF4D00]" />
+              <div className="flex items-center gap-1.5 md:gap-2 bg-white border border-[#D4D0CA] h-10 md:h-12 px-3 md:px-5 rounded-full shadow-sm">
+                <div className="h-5 w-5 md:h-6 md:w-6 bg-[#FF4D00]/10 rounded-full flex items-center justify-center">
+                  <Coins className="h-3 w-3 md:h-3.5 md:w-3.5 text-[#FF4D00]" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[8px] font-black text-[#6B6B6B] uppercase tracking-wider leading-none mb-0.5">
+                  <span className="hidden md:block text-[8px] font-black text-[#6B6B6B] uppercase tracking-wider leading-none mb-0.5">
                     Agency Balance
                   </span>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     {balanceLoading && balance === null ? (
                       <Loader2 className="h-3 w-3 animate-spin text-[#0A0A0A]" />
                     ) : (
-                      <span className="text-sm font-black text-[#0A0A0A]">
-                        {formatIdrx(balance ?? 0)} <span className="text-[10px] text-[#6B6B6B]">IDRX</span>
+                      <span className="text-xs md:text-sm font-black text-[#0A0A0A]">
+                        {formatIdrx(balance ?? 0)} <span className="text-[8px] md:text-[10px] text-[#6B6B6B]">IDRX</span>
                       </span>
                     )}
                   </div>
@@ -134,7 +153,9 @@ export default function OpsLayout({
             )}
             
             {mounted && (
-              <WalletMultiButton className="!bg-[#0A0A0A] !text-white !h-12 !px-8 !text-sm !font-bold !rounded-full hover:!bg-black/80 !transition-all !border-none !shadow-xl !shadow-black/10" />
+              <div className="wallet-ops-mobile-wrapper">
+                <WalletMultiButton className="!bg-[#0A0A0A] !text-white !h-10 md:!h-12 !px-3 md:!px-8 !text-xs md:!text-sm !font-bold !rounded-full hover:!bg-black/80 !transition-all !border-none !shadow-xl !shadow-black/10" />
+              </div>
             )}
           </div>
         </header>
@@ -143,6 +164,31 @@ export default function OpsLayout({
           {children}
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-20 bg-[#F5F2ED] border-t border-[#D4D0CA] flex items-center justify-around px-2 z-50 pb-safe">
+        {navItems.map((item) => {
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.name}
+              href={item.href}
+              className={cn(
+                "flex flex-col items-center justify-center w-full h-full gap-1",
+                isActive ? "text-[#FF4D00]" : "text-[#6B6B6B]"
+              )}
+            >
+              <div className={cn(
+                "p-1.5 rounded-xl transition-all",
+                isActive ? "bg-[#FF4D00]/10" : ""
+              )}>
+                <item.icon className="h-5 w-5" />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-wider">{item.name}</span>
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }
