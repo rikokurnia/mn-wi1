@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { AnchorProvider, Program, web3, BN } from '@coral-xyz/anchor'
 import { Connection, PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY } from '@solana/web3.js'
-import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token'
+import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction } from '@solana/spl-token'
 import idl from './idl.json'
 
 export const PROGRAM_ID = new PublicKey('6Dn1r6gSG4MrrvPEZjPk7x4PRxJZybxP6UKw5JKCxxVP')
@@ -121,6 +121,24 @@ export async function submitProofTx(
   const [escrowPDA] = getEscrowPDA(authority, jobId)
   const [escrowTokenPDA] = getEscrowTokenPDA(escrowPDA)
 
+  const preInstructions = [];
+  try {
+    const workerAtaInfo = await program.provider.connection.getAccountInfo(workerTokenAccount);
+    if (!workerAtaInfo) {
+      const mint = new PublicKey(process.env.NEXT_PUBLIC_IDRX_MINT!);
+      preInstructions.push(
+        createAssociatedTokenAccountInstruction(
+          worker, // payer
+          workerTokenAccount, // ata
+          worker, // owner
+          mint // mint
+        )
+      );
+    }
+  } catch (e) {
+    console.warn("Failed to check worker token account, assuming it exists", e);
+  }
+
   return program.methods
     .submitProof(workerLat, workerLng, Array.from(photoHash))
     .accounts({
@@ -132,6 +150,7 @@ export async function submitProofTx(
       authorityTokenAccount,
       tokenProgram: TOKEN_PROGRAM_ID,
     } as any)
+    .preInstructions(preInstructions)
     .rpc()
 }
 
