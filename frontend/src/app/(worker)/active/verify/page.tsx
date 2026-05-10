@@ -16,7 +16,7 @@ import {
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
-import { getProgram, submitProofTx, uuidToJobIdSync } from '@/lib/solana/client';
+import { getProgram, submitProofTx, uuidToJobIdSync, getEscrowPDA } from '@/lib/solana/client';
 
 type Step = 'loading' | 'gps' | 'camera' | 'submitting' | 'success' | 'error';
 
@@ -67,6 +67,37 @@ export default function VerificationPage() {
           return;
         }
         setJob(data.job);
+
+        // On-chain escrow verification BEFORE letting the worker proceed
+        if (data.job.escrow_pubkey && data.job.authority_pubkey) {
+          try {
+            const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC!, 'confirmed');
+            const readWallet = { publicKey, signTransaction: async (tx: any) => tx, signAllTransactions: async (txs: any[]) => txs };
+            const program = getProgram(connection, readWallet);
+            const authority = new PublicKey(data.job.authority_pubkey);
+            const jobIdBytes = uuidToJobIdSync(data.job.id);
+            const [escrowPDA] = getEscrowPDA(authority, jobIdBytes);
+            const escrow: any = await program.account.escrowAccount.fetch(escrowPDA);
+
+            const DEFAULT_PUBKEY = '11111111111111111111111111111111';
+            if (escrow.worker.toBase58() === DEFAULT_PUBKEY) {
+              setErrorMsg('On-chain Error: This job has not been assigned to any worker yet. Please go back to Explore and accept it again.');
+              setStep('error');
+              return;
+            }
+
+            if (escrow.worker.toBase58() !== publicKey.toBase58()) {
+              setErrorMsg(
+                `Wallet mismatch! This job is assigned to ${escrow.worker.toBase58().slice(0, 8)}... on-chain, but your current wallet is ${publicKey.toBase58().slice(0, 8)}...`
+              );
+              setStep('error');
+              return;
+            }
+          } catch (escrowErr: any) {
+            console.warn('[Mandora] Could not verify escrow on-chain:', escrowErr.message);
+          }
+        }
+
         if (data.job.status === 'pending_review' || data.job.status === 'in_progress') {
           setErrorMsg('Proof already submitted for this job.');
           setStep('error');
@@ -163,7 +194,7 @@ export default function VerificationPage() {
 
       // Authority = agency wallet address stored in DB when job was created
       const authority = new PublicKey(job.authority_pubkey);
-      const jobId = uuidToJobIdSync(job.id);
+      const jobIdBytes = uuidToJobIdSync(job.id);
       const mint = new PublicKey(process.env.NEXT_PUBLIC_IDRX_MINT!);
       const workerTokenAccount = await getAssociatedTokenAddress(mint, publicKey);
       const authorityTokenAccount = await getAssociatedTokenAddress(mint, authority);
@@ -174,7 +205,7 @@ export default function VerificationPage() {
       await submitProofTx(
         program, publicKey, authority,
         workerTokenAccount, authorityTokenAccount,
-        jobId, workerLat, workerLng, photoHash
+        jobIdBytes, workerLat, workerLng, photoHash
       );
 
       // 3. Update job status in DB

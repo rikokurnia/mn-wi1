@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import bs58 from 'bs58';
-import { getProgram, getEscrowPDA, uuidToJobIdSync } from '@/lib/solana/client';
+import { getProgram, assignWorkerTx, uuidToJobIdSync, getEscrowPDA } from '@/lib/solana/client';
 
 /**
  * POST /api/jobs/[id]/accept
@@ -58,48 +58,77 @@ export async function POST(
     return NextResponse.json({ error: 'Job no longer available' }, { status: 409 });
   }
 
-  // 3. Call assignWorkerTx on-chain (non-fatal if escrow data missing)
-  if (job.escrow_pubkey && job.authority_pubkey && process.env.OPS_WALLET_PRIVATE_KEY) {
-    try {
-      const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC!, 'confirmed');
-      const opsKeypair = Keypair.fromSecretKey(bs58.decode(process.env.OPS_WALLET_PRIVATE_KEY));
-      
-      // Build a server-side wallet from the OPS keypair (authority = agency wallet)
-      const serverWallet = {
-        publicKey: opsKeypair.publicKey,
-        signTransaction: async (tx: any) => {
-          tx.partialSign(opsKeypair);
-          return tx;
-        },
-        signAllTransactions: async (txs: any[]) => {
-          txs.forEach(tx => tx.partialSign(opsKeypair));
-          return txs;
-        },
-      };
-
-      const program = getProgram(connection, serverWallet);
-      const authority = new PublicKey(job.authority_pubkey);
-      const workerPubkey = new PublicKey(worker_wallet);
-      const jobId = uuidToJobIdSync(job.id);
-
-      await program.methods
-        .assignWorker()
-        .accounts({
-          authority,
-          worker: workerPubkey,
-          escrow: getEscrowPDA(authority, jobId)[0],
-        } as any)
-        .signers([opsKeypair])
-        .rpc();
-
-      console.log(`✅ assignWorker on-chain: job=${id} worker=${worker_wallet}`);
-    } catch (chainErr: any) {
-      // Log but don't block — DB assignment succeeded
-      console.error('assignWorkerTx failed (non-fatal):', chainErr.message);
+  // 3. On-chain assignment
+  // After the smart contract fix, assign_worker no longer requires the
+  // authority to sign. We use the job's stored authority_pubkey for PDA
+  // derivation, and any backend wallet pays the gas.
+  let chainTxSig = '';
+  try {
+    if (!process.env.OPS_WALLET_PRIVATE_KEY) {
+      throw new Error('OPS_WALLET_PRIVATE_KEY not configured');
     }
-  } else {
-    console.warn('assignWorkerTx skipped — missing escrow_pubkey, authority_pubkey, or OPS_WALLET_PRIVATE_KEY');
+    if (!job.authority_pubkey) {
+      throw new Error('Job is missing authority_pubkey. Was this job created before the escrow contract upgrade?');
+    }
+
+    const connection = new Connection(
+      process.env.NEXT_PUBLIC_SOLANA_RPC || 'https://api.devnet.solana.com',
+      'confirmed'
+    );
+
+    const payerKeypair = Keypair.fromSecretKey(bs58.decode(process.env.OPS_WALLET_PRIVATE_KEY));
+
+    // Build a wallet object compatible with AnchorProvider
+    const payerWallet = {
+      publicKey: payerKeypair.publicKey,
+      signTransaction: async (tx: any) => {
+        tx.partialSign(payerKeypair);
+        return tx;
+      },
+      signAllTransactions: async (txs: any[]) => {
+        txs.forEach((tx) => tx.partialSign(payerKeypair));
+        return txs;
+      },
+    };
+
+    const program = getProgram(connection, payerWallet);
+    // authority = the wallet that created the escrow (from job record)
+    const authority = new PublicKey(job.authority_pubkey);
+    const workerPubkey = new PublicKey(worker_wallet);
+    const jobIdBytes = uuidToJobIdSync(id);
+
+    chainTxSig = await assignWorkerTx(program, authority, workerPubkey, jobIdBytes);
+
+    // Verify assignment actually landed on-chain (devnet can be flaky)
+    let verified = false;
+    for (let i = 0; i < 3; i++) {
+      try {
+        const [escrowPDA] = getEscrowPDA(authority, jobIdBytes);
+        const escrow: any = await program.account.escrowAccount.fetch(escrowPDA);
+        if (escrow.worker.toBase58() === worker_wallet) {
+          verified = true;
+          break;
+        }
+      } catch {
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    }
+
+    if (!verified) {
+      throw new Error('Assignment transaction sent but could not be verified on-chain after retries');
+    }
+  } catch (chainErr: any) {
+    // Revert DB assignment so another worker can accept
+    await sb
+      .from('jobs')
+      .update({ status: 'open', worker_id: null, assigned_at: null })
+      .eq('id', id);
+
+    return NextResponse.json(
+      { error: 'On-chain assignment failed', details: chainErr.message || 'Unknown error' },
+      { status: 500 }
+    );
   }
 
-  return NextResponse.json({ job, worker }, { status: 200 });
+  return NextResponse.json({ job, worker, chainTxSig }, { status: 200 });
 }

@@ -92,8 +92,9 @@
       "accounts": [
         {
           "name": "authority",
-          "writable": true,
-          "signer": true
+          "docs": [
+            "Not a Signer — anyone can assign a worker as long as the PDA seeds match."
+          ]
         },
         {
           "name": "worker"
