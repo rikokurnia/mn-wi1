@@ -139,5 +139,5 @@ We are building the infrastructure layer for verifiable real-world labor and ins
 
 For partnerships, pilots, or integrations:
 
-* Email: [hello@mandora.xyz](mailto:hello@mandora.xyz)
-* Website: [https://mandora.xyz](https://mandora.xyz)
+* X(twiter): @m4ndora 
+* Website: mandoraa.vercel.app
